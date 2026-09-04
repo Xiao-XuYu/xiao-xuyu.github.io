@@ -9,8 +9,29 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
           onerror="this.onerror=null;this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';">
     <link rel="stylesheet" href="css/styles.css">
+    <script>
+        // 全局 JS 错误捕获,显示在页面顶部,方便排查
+        window.addEventListener('error', e => {
+            const bar = document.getElementById('jsErrorBar');
+            if (!bar) return;
+            bar.style.display = 'block';
+            bar.textContent = '❌ JS 错误:' + (e.message || e.error) +
+                              (e.filename ? ' · ' + e.filename.split('/').pop() : '') +
+                              (e.lineno ? ':' + e.lineno : '');
+            console.error('[GlobalError]', e.error || e.message);
+        });
+    </script>
+    <style>
+        #jsErrorBar {
+            display: none; position: fixed; top: 0; left: 0; right: 0;
+            z-index: 99999; background: #b14444; color: #fff;
+            padding: 8px 14px; font-size: 12px; line-height: 1.5;
+            font-family: ui-monospace, monospace; word-break: break-all;
+        }
+    </style>
 </head>
 <body>
+    <div id="jsErrorBar"></div>
     <div id="map"></div>
 
     <!-- 顶部统计卡片 -->
@@ -63,6 +84,7 @@
                 </div>
                 <div class="key-actions">
                     <button class="key-btn primary" id="amapKeySave">保存</button>
+                    <button class="key-btn" id="amapKeyTest">测试</button>
                     <button class="key-btn" id="amapKeyClear" style="display:none;">清除</button>
                 </div>
                 <div class="key-hint">

@@ -18,9 +18,17 @@ const AmapRoute = (function () {
     const dayPolylines = [];           // 按 day 存储高德 polyline
     let enabled = false;
     let abortCtrl = null;
-    const overlayLayer = L.layerGroup(); // 不放进 categories 的独立层
+    let overlayLayer = null;           // 延迟到 init() 中创建,避免脚本加载顺序问题
 
-    overlayLayer.addTo(MapManager.getMap());
+    function ensureLayer() {
+        const map = MapManager.getMap();
+        if (!map) return null;
+        if (!overlayLayer) {
+            overlayLayer = L.layerGroup();
+            overlayLayer.addTo(map);
+        }
+        return overlayLayer;
+    }
 
     function setEnabled(on) { enabled = on; }
 
@@ -103,7 +111,7 @@ const AmapRoute = (function () {
 
     /** 清空高德叠加层 + 缓存(用于 Key 更换后强制重新请求) */
     function clearAll() {
-        overlayLayer.clearLayers();
+        if (overlayLayer) overlayLayer.clearLayers();
         dayPolylines.length = 0;
         cache.clear();
     }
@@ -135,9 +143,11 @@ const AmapRoute = (function () {
         const totalDur = segs.reduce((s, x) => s + x.duration, 0);
 
         if (merged.length > 0) {
+            const layer = ensureLayer();
+            if (!layer) return;
             const poly = L.polyline(merged.map(p => [p[1], p[0]]), {
                 color: c, weight: 5, opacity: 0.9
-            }).addTo(overlayLayer);
+            }).addTo(layer);
             const km = (totalDist / 1000).toFixed(0);
             const hr = (totalDur / 3600).toFixed(1);
             poly.bindTooltip(`${day.name} · 驾车 ${km}km / ${hr}h`, { sticky: true });
@@ -176,13 +186,63 @@ const AmapRoute = (function () {
     }
 
     function clearOverlayOnly() {
-        overlayLayer.clearLayers();
+        if (overlayLayer) overlayLayer.clearLayers();
         dayPolylines.length = 0;
+    }
+
+    /** 测试 Key 是否有效 + 接口是否可用 */
+    async function testKey(key) {
+        key = (key || window.CONFIG.AMAP_KEY || '').trim();
+        if (!key) return { ok: false, stage: 'key', msg: '未填写 Key' };
+        if (key.length < 16) return { ok: false, stage: 'key', msg: 'Key 长度不对(应 32 位)' };
+
+        // 用一个轻量请求验证 Key
+        const url = `${API}?key=${encodeURIComponent(key)}&origin=116.397,39.908&destination=116.508,39.919&strategy=0&extensions=base&output=json`;
+        let resp, json, txt;
+        try {
+            resp = await fetch(url);
+        } catch (e) {
+            return { ok: false, stage: 'network', msg: '网络请求失败:' + e.message };
+        }
+        try {
+            txt = await resp.text();
+            json = JSON.parse(txt);
+        } catch (e) {
+            return { ok: false, stage: 'response', msg: '返回非 JSON:' + (txt || '').slice(0, 80) };
+        }
+        if (json.status !== '1') {
+            const code = json.infocode;
+            // 高德常见错误码映射
+            const errMap = {
+                '10001': 'Key 不正确或过期,请去 lbs.amap.com 检查',
+                '10003': 'Key 未启用 Web 服务,请在控制台勾选「Web 服务」',
+                '10004': 'Key 域名白名单限制,请在控制台加上 xiao-xuyu.github.io',
+                '10005': 'Key IP 白名单限制',
+                '10006': 'Key 余额不足',
+                '10007': 'Key 已删除',
+                '10008': 'Key 已冻结',
+                '10009': 'Key 未开通该 API 服务',
+                '20000': '请求参数错误:' + json.info,
+                '30000': '请求超出配额'
+            };
+            return {
+                ok: false, stage: 'api', msg: errMap[code] || (json.info || code)
+            };
+        }
+        if (!json.route || !json.route.paths || !json.route.paths[0]) {
+            return { ok: false, stage: 'api', msg: '接口返回成功但无路径数据' };
+        }
+        return {
+            ok: true,
+            stage: 'ok',
+            msg: `Key 有效 · 北京测试点距离 ${(json.route.paths[0].distance/1000).toFixed(1)}km`
+        };
     }
 
     return {
         setEnabled, isEnabled,
-        drawAll, drawOnlyDay, clearAll, clearOverlayOnly
+        drawAll, drawOnlyDay, clearAll, clearOverlayOnly,
+        testKey, ensureLayer
     };
 })();
 

@@ -267,6 +267,38 @@ const UI = (function () {
                 if (window.CONFIG.AMAP_KEY) input.value = maskKey(window.CONFIG.AMAP_KEY);
             }
         });
+
+        // 测试 Key
+        const testBtn = document.getElementById('amapKeyTest');
+        if (testBtn) {
+            testBtn.addEventListener('click', async () => {
+                const v = input.value.trim();
+                // 如果输入框是掩码(包含 *),就用当前保存的 Key
+                const keyToTest = v.includes('*') ? window.CONFIG.AMAP_KEY : v;
+                if (!keyToTest) {
+                    setAmapStatus('请先填写或保存 Key', 'err');
+                    input.focus();
+                    return;
+                }
+                testBtn.disabled = true;
+                const oldText = testBtn.textContent;
+                testBtn.textContent = '测试中…';
+                setAmapStatus('⏳ 正在调用高德接口测试 Key…', 'ok');
+                try {
+                    const r = await AmapRoute.testKey(keyToTest);
+                    if (r.ok) {
+                        setAmapStatus('✅ ' + r.msg, 'ok');
+                    } else {
+                        setAmapStatus('❌ ' + r.msg, 'err');
+                    }
+                } catch (e) {
+                    setAmapStatus('❌ 测试失败:' + e.message, 'err');
+                } finally {
+                    testBtn.disabled = false;
+                    testBtn.textContent = oldText;
+                }
+            });
+        }
     }
 
     function maskKey(k) {
