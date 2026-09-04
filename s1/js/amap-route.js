@@ -66,11 +66,34 @@ const AmapRoute = (function () {
             output: 'json'
         });
         const url = `${API}?${params.toString()}`;
-        const resp = await fetch(url, { signal: abortCtrl && abortCtrl.signal });
+        let resp;
+        try {
+            resp = await fetch(url, { signal: abortCtrl && abortCtrl.signal });
+        } catch (e) {
+            throw new Error('网络失败: ' + e.message);
+        }
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const json = await resp.json();
+        let json;
+        try {
+            json = await resp.json();
+        } catch (e) {
+            throw new Error('JSON 解析失败: ' + e.message);
+        }
         if (json.status !== '1') {
-            throw new Error(json.info || json.infocode || '未知错误');
+            const code = json.infocode;
+            const errMap = {
+                '10001': 'Key 不正确或过期',
+                '10003': 'Key 未启用「Web 服务」平台',
+                '10004': 'Key 域名白名单限制,请在控制台加上 xiao-xuyu.github.io',
+                '10005': 'Key IP 白名单限制',
+                '10006': 'Key 余额不足',
+                '10007': 'Key 已删除',
+                '10008': 'Key 已冻结',
+                '10009': 'Key 未开通该 API 服务',
+                '30000': '请求超出配额',
+                '30100': '请求路径不存在(两地过远)'
+            };
+            throw new Error((errMap[code] || json.info) + ' (' + code + ')');
         }
         const path = json.route && json.route.paths && json.route.paths[0];
         if (!path) throw new Error('未返回路径');
@@ -152,8 +175,13 @@ const AmapRoute = (function () {
         if (fail === 0) {
             setStatus('✅ 高德真实路径已叠加(' + okCount + ' 段)', 'ok');
         } else {
+            // 诊断:9 段全失败几乎都是 Key 未授权 Web 服务 或域名白名单
             const sample = errors.length ? errors.slice(0, 3).join(' | ') : '见 console';
-            setStatus('⚠️ 失败 ' + fail + '/' + days.length + ' · 示例:' + sample, 'err');
+            const isAllFail = fail === days.length;
+            const hint = isAllFail
+                ? ' · 请确认:①高德控制台已勾选「Web 服务」 ②已加上域名白名单 xiao-xuyu.github.io'
+                : '';
+            setStatus('⚠️ 失败 ' + fail + '/' + days.length + ' · ' + sample + hint, 'err');
         }
     }
 
