@@ -15,9 +15,10 @@
             const bar = document.getElementById('jsErrorBar');
             if (!bar) return;
             bar.style.display = 'block';
+            const stack = (e.error && e.error.stack) ? '\n' + e.error.stack.slice(0, 600) : '';
             bar.textContent = '❌ JS 错误:' + (e.message || e.error) +
                               (e.filename ? ' · ' + e.filename.split('/').pop() : '') +
-                              (e.lineno ? ':' + e.lineno : '');
+                              (e.lineno ? ':' + e.lineno : '') + stack;
             console.error('[GlobalError]', e.error || e.message);
         });
     </script>
@@ -112,13 +113,13 @@
             onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';document.head.appendChild(s);"></script>
 
     <!-- 应用脚本(按依赖顺序加载) -->
-    <script src="js/config.js"></script>
-    <script src="js/data.js"></script>
-    <script src="js/map.js"></script>
-    <script src="js/markers.js"></script>
-    <script src="js/route.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/amap-route.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/config.js" onerror="console.error('config.js load failed')"></script>
+    <script src="js/data.js" onerror="console.error('data.js load failed')"></script>
+    <script src="js/map.js" onerror="console.error('map.js load failed')"></script>
+    <script src="js/markers.js" onerror="console.error('markers.js load failed')"></script>
+    <script src="js/route.js" onerror="console.error('route.js load failed')"></script>
+    <script src="js/ui.js" onerror="console.error('ui.js load failed')"></script>
+    <script src="js/amap-route.js" onerror="(function(e){console.error('amap-route.js load failed',e);document.getElementById('jsErrorBar').style.display='block';document.getElementById('jsErrorBar').textContent='❌ amap-route.js 加载失败,可能是 404 或网络问题';})()"></script>
+    <script src="js/main.js" onerror="console.error('main.js load failed')"></script>
 </body>
 </html>
