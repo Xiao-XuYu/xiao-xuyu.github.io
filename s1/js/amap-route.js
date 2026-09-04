@@ -59,7 +59,8 @@ const AmapRoute = (function () {
 
     /** 调用 Web 服务驾车路径规划(origin -> destination) */
     async function fetchSegment(origin, destination) {
-        const key = window.CONFIG.AMAP_KEY;
+        const key = (window.CONFIG.AMAP_KEY || '').trim();
+        if (!key) throw new Error('未配置 API Key');
         const strategy = window.CONFIG.AMAP_STRATEGY;
         const params = new URLSearchParams({
             key,
@@ -100,10 +101,11 @@ const AmapRoute = (function () {
         abortCtrl = new AbortController();
     }
 
-    /** 清空高德叠加层 */
+    /** 清空高德叠加层 + 缓存(用于 Key 更换后强制重新请求) */
     function clearAll() {
         overlayLayer.clearLayers();
         dayPolylines.length = 0;
+        cache.clear();
     }
 
     function setStatus(text, level = 'err') {

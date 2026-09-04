@@ -1,5 +1,5 @@
 /* ============================================================
-   ui.js - 侧边面板交互(搜索/筛选/每日列表/抽屉/统计/开关)
+   ui.js - 侧边面板交互(搜索/筛选/每日列表/抽屉/统计/开关/Key配置)
    职责:
      - 渲染分类筛选列表
      - 渲染每日路线列表(可点击)
@@ -7,6 +7,7 @@
      - 移动端抽屉开关
      - 统计条数据更新
      - 高德路线开关 UI 与状态
+     - 高德 API Key 输入、保存(localStorage)、清空
    ============================================================ */
 
 const UI = (function () {
@@ -151,27 +152,127 @@ const UI = (function () {
     function initAmapToggle() {
         const sw = document.getElementById('amapSwitch');
         const status = document.getElementById('amapStatus');
-        const key = window.CONFIG.AMAP_KEY;
 
-        if (!key || key === 'YOUR_AMAP_KEY') {
-            sw.classList.remove('on');
-            sw.setAttribute('disabled', 'disabled');
-            status.className = 'amap-status err';
-            status.textContent = '⚠️ 请先在 js/config.js 填入高德 API Key,驾车真实路线功能才能启用。';
-            return;
-        }
+        refreshAmapAvailability();
+        syncSwitchFromConfig();
 
-        // 默认状态
-        if (window.CONFIG.AMAP_DEFAULT_ON) sw.classList.add('on');
+        if (window.CONFIG.AMAP_DEFAULT_ON && hasKey()) sw.classList.add('on');
 
         sw.addEventListener('click', () => {
             if (sw.hasAttribute('disabled')) return;
+            if (!hasKey()) {
+                // 没 Key 时点开关 → 提示并聚焦输入框
+                setAmapStatus('⚠️ 请先在上方填入高德 API Key 并保存', 'err');
+                document.getElementById('amapKeyInput').focus();
+                return;
+            }
             sw.classList.toggle('on');
             const on = sw.classList.contains('on');
             onAmapToggle(on);
             status.className = 'amap-status ' + (on ? 'ok' : 'err');
             status.textContent = on ? '🛣 已开启:叠加高德驾车真实路径' : '已关闭:仅显示本地简化路线';
         });
+    }
+
+    function hasKey() {
+        const k = (window.CONFIG.AMAP_KEY || '').trim();
+        return k.length >= 16;       // 高德 Key 一般 32 位
+    }
+
+    function refreshAmapAvailability() {
+        const sw = document.getElementById('amapSwitch');
+        const status = document.getElementById('amapStatus');
+        if (!hasKey()) {
+            sw.classList.remove('on');
+            sw.setAttribute('disabled', 'disabled');
+            status.className = 'amap-status';
+            status.textContent = '请先在上方填入 API Key,驾车真实路径才能启用';
+        } else {
+            sw.removeAttribute('disabled');
+            status.className = 'amap-status ok';
+            status.textContent = '✅ Key 已加载,可开启驾车路径';
+        }
+    }
+
+    function syncSwitchFromConfig() {
+        // CONFIG.AMAP_KEY 已从 localStorage 读取后再调用本方法
+        refreshAmapAvailability();
+    }
+
+    /* ---------- 高德 Key 配置面板 ---------- */
+    function initAmapKeyPanel() {
+        const input = document.getElementById('amapKeyInput');
+        const saveBtn = document.getElementById('amapKeySave');
+        const clearBtn = document.getElementById('amapKeyClear');
+        const maskToggle = document.getElementById('amapKeyMask');
+        const lsKey = window.CONFIG.LS_KEY_NAME;
+
+        // 载入已保存的 Key(只显示前 4 后 4 中间 ****)
+        const saved = localStorage.getItem(lsKey);
+        if (saved) {
+            window.CONFIG.AMAP_KEY = saved;
+            input.value = maskKey(saved);
+            input.placeholder = '已保存 Key · 点击「修改」可更换';
+            clearBtn.style.display = '';
+        }
+
+        // 输入框聚焦时清空,允许输入完整 Key
+        input.addEventListener('focus', () => {
+            if (input.value.includes('*')) input.value = '';
+        });
+
+        // 保存
+        saveBtn.addEventListener('click', () => {
+            const v = input.value.trim();
+            if (!v) {
+                setAmapStatus('Key 不能为空', 'err');
+                return;
+            }
+            if (v.length < 16) {
+                setAmapStatus('Key 长度不对,请检查是否完整复制', 'err');
+                return;
+            }
+            localStorage.setItem(lsKey, v);
+            window.CONFIG.AMAP_KEY = v;
+            input.value = maskKey(v);
+            input.blur();
+            clearBtn.style.display = '';
+            refreshAmapAvailability();
+            setAmapStatus('✅ Key 已保存,可点击上方开关启用驾车路径', 'ok');
+        });
+
+        // 清空
+        clearBtn.addEventListener('click', () => {
+            if (!confirm('确定要清除已保存的高德 API Key?')) return;
+            localStorage.removeItem(lsKey);
+            window.CONFIG.AMAP_KEY = '';
+            input.value = '';
+            input.placeholder = '粘贴从高德开放平台申请的 Web 端 Key';
+            clearBtn.style.display = 'none';
+            AmapRoute.clearOverlayOnly();
+            refreshAmapAvailability();
+            setAmapStatus('已清除 Key', 'err');
+        });
+
+        // 显隐切换
+        maskToggle.addEventListener('click', () => {
+            if (input.type === 'password') {
+                input.type = 'text';
+                maskToggle.textContent = '🙈';
+                // 显隐状态下都展示掩码
+                if (window.CONFIG.AMAP_KEY) input.value = maskKey(window.CONFIG.AMAP_KEY);
+            } else {
+                input.type = 'password';
+                maskToggle.textContent = '👁';
+                if (window.CONFIG.AMAP_KEY) input.value = maskKey(window.CONFIG.AMAP_KEY);
+            }
+        });
+    }
+
+    function maskKey(k) {
+        if (!k) return '';
+        if (k.length <= 8) return '*'.repeat(k.length);
+        return k.slice(0, 4) + '*'.repeat(Math.max(4, k.length - 8)) + k.slice(-4);
     }
 
     function setCallbacks({ onDay, onAll, onAmap }) {
@@ -191,7 +292,8 @@ const UI = (function () {
         renderTripSummary();
         initSearch();
         initPanelDrawer();
-        initAmapToggle();
+        initAmapKeyPanel();      // 先加载 Key 到 CONFIG
+        initAmapToggle();        // 再检查开关状态
     }
 
     return {
