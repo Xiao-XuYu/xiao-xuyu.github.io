@@ -1,0 +1,338 @@
+/* ============================================================
+   青甘大环线 - 样式表
+   结构:
+     1. 主题变量与基础
+     2. 地图与覆盖层
+     3. 侧边面板
+     4. 搜索
+     5. 行程段控件 / 分类筛选 / 每日列表
+     6. 移动端折叠按钮
+     7. 图例标记 / 弹窗
+     8. 统计卡片 / 高德路线开关
+     9. 响应式 / 滚动条 / 加载
+   ============================================================ */
+
+/* 1. 主题变量与基础 */
+:root {
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --text: #2c3e50;
+    --muted: #6b7785;
+    --border: #e6e8ec;
+    --accent: #2c7be5;
+    --accent-soft: #eaf2fe;
+    --warn: #fff8e6;
+    --warn-text: #8a6d3b;
+    --shadow: 0 4px 16px rgba(20, 30, 60, .08);
+    --radius: 10px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    overflow: hidden;
+}
+
+/* 2. 地图与覆盖层 */
+#map { width: 100%; height: 100vh; min-height: 300px; }
+
+/* 3. 侧边面板 */
+.panel {
+    position: absolute; top: 12px; right: 12px;
+    width: 320px; max-height: calc(100vh - 24px);
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    z-index: 1000;
+    display: flex; flex-direction: column;
+    font-size: 13px;
+}
+.panel-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+}
+.panel-header h2 {
+    font-size: 16px; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+}
+.panel-header h2::before {
+    content: ""; width: 4px; height: 16px;
+    background: var(--accent); border-radius: 2px;
+}
+.panel-subtitle { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.panel-body { padding: 12px 16px 16px; overflow-y: auto; flex: 1; }
+.section-title {
+    font-size: 12px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .5px;
+    margin: 12px 0 6px;
+}
+.section-title:first-child { margin-top: 0; }
+
+/* 4. 搜索 */
+.search-box { position: relative; margin-bottom: 4px; }
+.search-box input {
+    width: 100%; padding: 9px 12px 9px 34px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: #fafbfc; font-size: 13px;
+    transition: all .2s;
+}
+.search-box input:focus {
+    outline: none; border-color: var(--accent); background: #fff;
+    box-shadow: 0 0 0 3px rgba(44,123,229,.1);
+}
+.search-box::before {
+    content: "🔍"; position: absolute; left: 11px; top: 50%;
+    transform: translateY(-50%); font-size: 13px; opacity: .55;
+}
+.search-clear {
+    position: absolute; right: 8px; top: 50%;
+    transform: translateY(-50%);
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); font-size: 16px; display: none;
+    padding: 4px; line-height: 1;
+}
+.search-clear.visible { display: block; }
+
+/* 5. 行程段控件 / 分类筛选 / 每日列表 */
+.seg {
+    display: flex; background: #f0f2f5; padding: 3px;
+    border-radius: 8px; gap: 2px;
+}
+.seg button {
+    flex: 1; padding: 7px 0; border: none; background: transparent;
+    font-size: 12px; color: var(--muted); cursor: pointer;
+    border-radius: 6px; transition: all .2s; font-weight: 500;
+}
+.seg button.active {
+    background: #fff; color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,.08); font-weight: 600;
+}
+.seg button:not(.active):hover { color: var(--text); }
+
+.filters { display: flex; flex-direction: column; gap: 2px; }
+.filter-item {
+    display: flex; align-items: center; padding: 6px 8px;
+    cursor: pointer; border-radius: 6px;
+    transition: background .15s; user-select: none;
+}
+.filter-item:hover { background: #f5f7fa; }
+.filter-item input { display: none; }
+.filter-item .check {
+    width: 16px; height: 16px; border: 2px solid #c8ccd2;
+    border-radius: 4px; margin-right: 10px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s; flex-shrink: 0;
+}
+.filter-item input:checked + .check {
+    background: var(--accent); border-color: var(--accent);
+}
+.filter-item input:checked + .check::after {
+    content: "✓"; color: #fff; font-size: 11px; font-weight: bold;
+}
+.legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    margin-right: 8px; flex-shrink: 0;
+}
+.filter-item span { flex: 1; }
+.filter-count {
+    color: var(--muted); font-size: 11px;
+    background: #f0f2f5; padding: 1px 6px; border-radius: 8px;
+}
+
+.day-list { display: flex; flex-direction: column; gap: 6px; }
+.day-item {
+    padding: 9px 11px; border-radius: 8px;
+    background: #fafbfc; border: 1px solid var(--border);
+    cursor: pointer; transition: all .15s;
+    display: flex; align-items: center; gap: 10px;
+}
+.day-item:hover { border-color: var(--accent); background: #fff; }
+.day-item.active {
+    border-color: var(--accent); background: var(--accent-soft);
+    box-shadow: 0 0 0 2px rgba(44,123,229,.1);
+}
+.day-badge {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; flex-shrink: 0;
+}
+.day-info { flex: 1; min-width: 0; }
+.day-name {
+    font-size: 13px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.day-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* 6. 移动端折叠按钮 */
+.panel-toggle {
+    display: none;
+    position: fixed; top: 12px; right: 12px;
+    z-index: 1200; background: var(--card);
+    border: none; border-radius: 50%;
+    width: 44px; height: 44px;
+    box-shadow: var(--shadow); cursor: pointer;
+    font-size: 20px; color: var(--text);
+    align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+.panel-close {
+    display: none;
+    position: absolute; top: 10px; right: 10px;
+    z-index: 1001; background: transparent;
+    border: none; font-size: 22px; cursor: pointer;
+    color: var(--muted); padding: 6px 10px;
+    -webkit-tap-highlight-color: transparent;
+    line-height: 1;
+}
+
+/* 7. 图例标记 / 弹窗 */
+.marker-label {
+    background: rgba(255,255,255,.95);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px; font-weight: 600;
+    color: var(--text);
+    border: 1px solid rgba(0,0,0,.1);
+    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+    white-space: nowrap;
+}
+.marker-label::before {
+    content: ""; display: inline-block;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor; margin-right: 5px; vertical-align: middle;
+}
+
+.leaflet-popup-content-wrapper {
+    border-radius: 10px; padding: 0;
+    box-shadow: 0 6px 24px rgba(0,0,0,.15);
+}
+.leaflet-popup-content { margin: 0; width: 260px !important; }
+.popup-img {
+    width: 100%; height: 130px; object-fit: cover;
+    display: block; background: #eef0f3;
+}
+.popup-body { padding: 12px 14px 14px; }
+.popup-title {
+    font-weight: 700; font-size: 15px; color: var(--text);
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+}
+.popup-cat {
+    font-size: 10px; padding: 2px 7px; border-radius: 10px;
+    color: #fff; font-weight: 500;
+}
+.popup-desc { font-size: 12.5px; color: #555; line-height: 1.6; margin-bottom: 10px; }
+.popup-meta {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px;
+    padding-top: 10px; border-top: 1px solid var(--border);
+    font-size: 11.5px;
+}
+.popup-meta-row {
+    display: flex; align-items: center; gap: 5px;
+    color: var(--muted);
+}
+.popup-meta-row .ico { font-size: 12px; }
+.popup-meta-row .val { color: var(--text); font-weight: 500; }
+.popup-actions {
+    display: flex; gap: 6px; margin-top: 12px;
+}
+.popup-btn {
+    flex: 1; padding: 6px 0; border: 1px solid var(--border);
+    background: #fff; border-radius: 6px;
+    font-size: 11.5px; color: var(--text);
+    cursor: pointer; text-align: center;
+    transition: all .15s; text-decoration: none;
+}
+.popup-btn:hover { border-color: var(--accent); color: var(--accent); }
+.popup-btn.primary {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.popup-btn.primary:hover { background: #1f6ad4; color: #fff; }
+
+/* 8. 统计卡片 / 高德路线开关 */
+.stats-bar {
+    position: absolute; left: 12px; top: 12px;
+    background: var(--card); padding: 10px 14px;
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    z-index: 1000; font-size: 12px;
+    display: flex; gap: 18px;
+}
+.stat { display: flex; flex-direction: column; align-items: center; }
+.stat-val { font-size: 16px; font-weight: 700; color: var(--accent); }
+.stat-label { color: var(--muted); font-size: 11px; margin-top: 1px; }
+
+/* 开关 */
+.switch-row {
+    display: flex; align-items: center; padding: 8px 0;
+    gap: 10px;
+}
+.switch-row .switch-label { flex: 1; font-size: 13px; }
+.switch-row .switch-sub {
+    font-size: 11px; color: var(--muted); margin-top: 2px;
+}
+.switch {
+    position: relative; width: 36px; height: 20px;
+    background: #d0d4da; border-radius: 11px;
+    cursor: pointer; transition: background .2s; flex-shrink: 0;
+}
+.switch::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; background: #fff;
+    border-radius: 50%; transition: left .2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.switch.on { background: var(--accent); }
+.switch.on::after { left: 18px; }
+.switch[disabled] { opacity: .5; cursor: not-allowed; }
+
+.amap-status {
+    font-size: 11px; padding: 6px 8px; border-radius: 6px;
+    margin-top: 6px;
+    background: var(--warn); color: var(--warn-text);
+    line-height: 1.5;
+}
+.amap-status.ok { background: #eaf7ed; color: #2f7d3e; }
+.amap-status.err { background: #fdecec; color: #b14444; }
+
+/* 9. 响应式 / 滚动条 / 加载 */
+@media (max-width: 768px) {
+    .stats-bar { padding: 8px 12px; gap: 12px; font-size: 11px; }
+    .stat-val { font-size: 14px; }
+    .panel {
+        position: fixed; top: 0; right: -100%;
+        width: 86%; max-width: 340px; height: 100vh;
+        max-height: 100vh; border-radius: 0;
+        transition: right .25s ease-out;
+        box-shadow: -4px 0 20px rgba(0,0,0,.15);
+    }
+    .panel.open { right: 0; }
+    .panel-toggle { display: flex; }
+    body.panel-open .panel-toggle { display: none; }
+    .panel-close { display: block; }
+    .leaflet-popup-content { width: 220px !important; }
+    .panel-backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,.35);
+        z-index: 999; opacity: 0; pointer-events: none;
+        transition: opacity .25s;
+    }
+    .panel-backdrop.show { opacity: 1; pointer-events: auto; }
+}
+
+.panel-body::-webkit-scrollbar { width: 5px; }
+.panel-body::-webkit-scrollbar-thumb { background: #d0d4da; border-radius: 3px; }
+.panel-body::-webkit-scrollbar-track { background: transparent; }
+
+.empty {
+    text-align: center; padding: 20px 10px;
+    color: var(--muted); font-size: 12px;
+}
+.empty-icon { font-size: 28px; margin-bottom: 6px; opacity: .5; }
+
+.leaflet-control-attribution {
+    font-size: 10px !important; background: rgba(255,255,255,.7) !important;
+}

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.0">
+    <meta name="description" content="青甘大环线 9 天 8 晚自驾地图:成都 → 兰州 → 张掖丹霞 → 大柴旦翡翠湖 → G315 U型公路 → 水上雅丹 → 茶卡 → 青海湖石乃亥(2晚深度)→ 西宁 → 陇南 → 成都。">
+    <meta name="keywords" content="青甘大环线,9天8晚,青海甘肃自驾游,翡翠湖,G315 U型公路,水上雅丹,茶卡盐湖,青海湖石乃亥,七彩丹霞">
+    <title>青甘大环线 9 天自驾地图 | 青海湖深度慢游版</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+          onerror="this.onerror=null;this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- 顶部统计卡片 -->
+    <div class="stats-bar" id="statsBar">
+        <div class="stat"><div class="stat-val" id="statDistance">0</div><div class="stat-label">公里</div></div>
+        <div class="stat"><div class="stat-val" id="statDays">0</div><div class="stat-label">天</div></div>
+        <div class="stat"><div class="stat-val" id="statSpots">0</div><div class="stat-label">景点</div></div>
+        <div class="stat"><div class="stat-val" id="statLakes">0</div><div class="stat-label">盐湖</div></div>
+    </div>
+
+    <!-- 移动端菜单按钮 -->
+    <button class="panel-toggle" id="panelToggle" aria-label="菜单" title="菜单">☰</button>
+
+    <!-- 抽屉遮罩 -->
+    <div class="panel-backdrop" id="panelBackdrop"></div>
+
+    <!-- 侧边面板 -->
+    <aside class="panel" id="panel">
+        <button class="panel-close" id="panelClose" title="关闭">✕</button>
+
+        <div class="panel-header">
+            <h2>青甘大环线</h2>
+            <div class="panel-subtitle">青海 · 甘肃 · 河西走廊自驾地图</div>
+        </div>
+
+        <div class="panel-body">
+            <div class="section-title">搜索景点</div>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="输入景点/城市名称">
+                <button class="search-clear" id="searchClear">✕</button>
+            </div>
+
+            <div class="section-title">每日路线(9 天)</div>
+            <div class="day-list" id="dayList"></div>
+
+            <div class="section-title">分类筛选</div>
+            <div class="filters" id="filters"></div>
+
+            <!-- 高德驾车路线开关 -->
+            <div class="section-title">驾车路径</div>
+            <div class="switch-row">
+                <div>
+                    <div class="switch-label">🛣 高德真实驾车路径</div>
+                    <div class="switch-sub">叠加高德路径规划,显示实际高速/国道</div>
+                </div>
+                <div class="switch" id="amapSwitch"></div>
+            </div>
+            <div class="amap-status" id="amapStatus">请填入 Key 后启用</div>
+
+            <div class="section-title">9 天行程摘要</div>
+            <div id="tripSummary" style="font-size:12px;color:var(--muted);line-height:1.7;padding:0 2px;"></div>
+        </div>
+    </aside>
+
+    <!-- Leaflet -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+            onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';document.head.appendChild(s);"></script>
+
+    <!-- 应用脚本(按依赖顺序加载) -->
+    <script src="js/config.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/markers.js"></script>
+    <script src="js/route.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/amap-route.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
