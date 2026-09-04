@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="青甘大环线自驾旅游互动地图,汇集盐湖、丹霞、雅丹、莫高窟等核心景点与环线路线,支持分类筛选与景点详情查看。">
+    <meta name="keywords" content="青甘大环线,青海甘肃旅游,自驾游,盐湖,茶卡盐湖,翡翠湖,莫高窟,七彩丹霞,雅丹,环线路线">
+    <title>青甘大环线自驾地图 | 盐湖·丹霞·莫高窟景点导航</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Microsoft YaHei", Arial, sans-serif; }
+        #map { width: 100%; height: 100vh; }
+        .info-panel {
+            position: absolute; top: 10px; right: 10px;
+            background: rgba(255,255,255,0.95);
+            padding: 15px; border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000; max-width: 280px; max-height: 90vh;
+            overflow-y: auto; font-size: 13px;
+        }
+        .info-panel h3 { margin-bottom: 10px; color: #2c3e50; }
+        .legend { display: flex; align-items: center; margin: 5px 0; }
+        .legend-dot { width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; border: 2px solid white; box-shadow: 0 0 2px rgba(0,0,0,0.5); }
+        .filter-item { display: flex; align-items: center; padding: 4px 6px; cursor: pointer; border-radius: 4px; margin: 3px 0; }
+        .filter-item:hover { background: #f0f0f0; }
+        .filter-item input { margin-right: 8px; cursor: pointer; }
+        .popup-img { width: 200px; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 5px; }
+        .popup-title { font-weight: bold; font-size: 15px; color: #2c3e50; margin-bottom: 5px; }
+        .popup-desc { font-size: 12px; color: #555; line-height: 1.5; }
+        .marker-label {
+            background: rgba(255,255,255,0.9);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #2c3e50;
+            border: 1px solid rgba(0,0,0,0.2);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="info-panel">
+        <h3>青甘大环线地图</h3>
+        <div id="filters"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map').setView([37.5, 95.5], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        const categories = {
+            salt_lake: { name: '盐湖', color: '#e74c3c' },
+            city:      { name: '主要城市', color: '#3498db' },
+            scenic:    { name: '常规景点', color: '#27ae60' },
+            route:     { name: '环线路线', color: '#f39c12' }
+        };
+
+        const layers = {};
+        Object.keys(categories).forEach(k => layers[k] = L.layerGroup().addTo(map));
+
+        const saltLakes = [
+            { name: '察尔汗盐湖', lat: 36.75, lng: 95.30, desc: '亚洲最大、世界第二盐湖,湖水呈通透的苹果绿,有"万丈盐桥"和盐花奇观。门票约40元,大巴60元。',
+              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Chaerhan%20Salt%20Lake%20Qinghai%20vast%20green%20emerald%20water%20salt%20bridge%20aerial%20view&image_size=landscape_4_3' },
+            { name: '大柴旦翡翠湖', lat: 37.85, lng: 95.36, desc: '数十个大小盐池组成,因矿物质不同呈现蓝、绿、黄等多种色彩,犹如散落人间的"调色板"。门票约50-60元。',
+              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Da%20Chaidan%20Emerald%20Lake%20Qinghai%20colorful%20turquoise%20pools%20mineral%20colors%20aerial&image_size=landscape_4_3' },
+            { name: '茶卡盐湖', lat: 36.69, lng: 99.10, desc: '老牌网红"天空之镜",湖面平坦如镜,晴天完美倒映天空,拍出"水上漂"效果。门票60元,小火车50元。',
+              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Chaka%20Salt%20Lake%20Sky%20Mirror%20Qinghai%20reflection%20white%20salt%20flat%20lake&image_size=landscape_4_3' },
+            { name: '茫崖翡翠湖', lat: 38.35, lng: 90.85, desc: '环线西端的隐世秘境,色彩宛如上好的翡翠,路途遥远游客稀少更显宁静,目前暂无门票。',
+              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Mangya%20Emerald%20Lake%20Qinghai%20green%20emerald%20water%20hidden%20secret%20desert&image_size=landscape_4_3' },
+            { name: '东台吉乃尔湖', lat: 37.42, lng: 93.85, desc: '被誉为"中国版马尔代夫",Tiffany蓝湖水,水天一色。注意:可能会季节性消失。',
+              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=East%20Taijnar%20Lake%20Maldives%20of%20China%20Tiffany%20blue%20water%20white%20beach&image_size=landscape_4_3' },
+            { name: '西台吉乃尔湖', lat: 37.55, lng: 93.45, desc: 'G315国道旁的"双色湖",公路从中穿过,两侧湖水颜色迥异,一蓝一绿奇观。',
+              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=West%20Taijnar%20Lake%20two%20color%20blue%20green%20G315%20highway%20Qinghai%20aerial&image_size=landscape_4_3' }
+        ];
+
+        const cities = [
+            { name: '西宁', lat: 36.62, lng: 101.78, desc: '青甘大环线起点,青海省会,海拔2261米。' },
+            { name: '兰州', lat: 36.06, lng: 103.83, desc: '甘肃省会,可作为环线东部起点,黄河穿城而过。' },
+            { name: '敦煌', lat: 40.14, lng: 94.66, desc: '丝路重镇,莫高窟、鸣沙山月牙泉所在地。' },
+            { name: '嘉峪关', lat: 39.77, lng: 98.29, desc: '明代万里长城西端起点。' },
+            { name: '张掖', lat: 38.93, lng: 100.45, desc: '七彩丹霞所在地,河西走廊重镇。' },
+            { name: '德令哈', lat: 37.37, lng: 97.37, desc: '海西州首府,环线中段重要补给站。' },
+            { name: '格尔木', lat: 36.41, lng: 94.91, desc: '进藏门户,察尔汗盐湖所在地。' },
+            { name: '大柴旦', lat: 37.85, lng: 95.36, desc: '翡翠湖所在地,环线中转小镇。' },
+            { name: '茫崖', lat: 38.35, lng: 90.85, desc: '新疆青海交界,茫崖翡翠湖所在地。' }
+        ];
+
+        const scenics = [
+            { name: '莫高窟', lat: 40.04, lng: 94.81, desc: '世界文化遗产,千佛洞,佛教艺术宝库。门票238元,需提前预约。' },
+            { name: '鸣沙山月牙泉', lat: 40.11, lng: 94.67, desc: '沙漠中的奇景,月牙形泉水千年不涸。门票110元。' },
+            { name: '嘉峪关关城', lat: 39.77, lng: 98.27, desc: '明代长城西端起点,"天下第一雄关"。门票110元。' },
+            { name: '张掖七彩丹霞', lat: 38.93, lng: 100.07, desc: '中国最美丹霞地貌之一,色彩斑斓如调色板。门票74元。' },
+            { name: '雅丹魔鬼城', lat: 40.45, lng: 93.10, desc: '柴达木盆地西北部的风蚀地貌群,西海舰队奇观。门票120元含观光车。' },
+            { name: '阳关', lat: 39.93, lng: 94.10, desc: '古代丝绸之路南道重要关隘,"西出阳关无故人"。门票50元。' },
+            { name: '玉门关', lat: 40.37, lng: 93.87, desc: '汉代边塞遗址,羌笛何须怨杨柳。门票40元。' },
+            { name: '石油小镇', lat: 38.62, lng: 92.45, desc: '废弃的冷湖石油基地,《九层妖塔》取景地。门票20元。' },
+            { name: '可鲁克湖', lat: 37.28, lng: 96.85, desc: '德令哈附近,水草丰美的湿地湖泊。' },
+            { name: '阿克塞石油小镇', lat: 39.55, lng: 94.10, desc: '影视基地,《西风烈》《九层妖塔》取景地。' },
+            { name: '水上雅丹', lat: 38.05, lng: 93.85, desc: '世界上唯一一片在水中的雅丹地貌,乌素特水上雅丹。门票60元。' },
+            { name: '火星营地', lat: 38.42, lng: 92.95, desc: '冷湖火星小镇,体验火星生存的科幻基地。' }
+        ];
+
+        const routePoints = [
+            { name: '西宁', lat: 36.62, lng: 101.78 },
+            { name: '青海湖', lat: 36.95, lng: 100.18 },
+            { name: '茶卡盐湖', lat: 36.69, lng: 99.10 },
+            { name: '德令哈', lat: 37.37, lng: 97.37 },
+            { name: '大柴旦翡翠湖', lat: 37.85, lng: 95.36 },
+            { name: '察尔汗盐湖', lat: 36.75, lng: 95.30 },
+            { name: '格尔木', lat: 36.41, lng: 94.91 },
+            { name: '水上雅丹', lat: 38.05, lng: 93.85 },
+            { name: '西台吉乃尔湖', lat: 37.55, lng: 93.45 },
+            { name: '东台吉乃尔湖', lat: 37.42, lng: 93.85 },
+            { name: '茫崖翡翠湖', lat: 38.35, lng: 90.85 },
+            { name: '火星营地', lat: 38.42, lng: 92.95 },
+            { name: '石油小镇', lat: 38.62, lng: 92.45 },
+            { name: '雅丹魔鬼城', lat: 40.45, lng: 93.10 },
+            { name: '敦煌', lat: 40.14, lng: 94.66 },
+            { name: '嘉峪关', lat: 39.77, lng: 98.29 },
+            { name: '张掖七彩丹霞', lat: 38.93, lng: 100.07 },
+            { name: '祁连大草原', lat: 38.18, lng: 100.25 },
+            { name: '门源油菜花', lat: 37.38, lng: 101.62 },
+            { name: '西宁', lat: 36.62, lng: 101.78 }
+        ];
+
+        function createMarker(lat, lng, name, desc, img, color) {
+            const icon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="background:${color};width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 0 4px rgba(0,0,0,0.6);"></div>`,
+                iconSize: [18, 18],
+                iconAnchor: [9, 9]
+            });
+            const popupContent = `
+                ${img ? `<img src="${img}" class="popup-img" onerror="this.style.display='none'">` : ''}
+                <div class="popup-title">${name}</div>
+                <div class="popup-desc">${desc}</div>
+            `;
+            return L.marker([lat, lng], { icon })
+                .bindPopup(popupContent, { maxWidth: 240 })
+                .bindTooltip(name, {
+                    permanent: true,
+                    direction: 'right',
+                    offset: [10, 0],
+                    className: 'marker-label'
+                });
+        }
+
+        saltLakes.forEach(item => {
+            createMarker(item.lat, item.lng, item.name, item.desc, item.img, categories.salt_lake.color)
+                .addTo(layers.salt_lake);
+        });
+
+        cities.forEach(item => {
+            createMarker(item.lat, item.lng, item.name, item.desc, null, categories.city.color)
+                .addTo(layers.city);
+        });
+
+        scenics.forEach(item => {
+            createMarker(item.lat, item.lng, item.name, item.desc, null, categories.scenic.color)
+                .addTo(layers.scenic);
+        });
+
+        const routeCoords = routePoints.map(p => [p.lat, p.lng]);
+        L.polyline(routeCoords, {
+            color: categories.route.color, weight: 4, opacity: 0.7, dashArray: '10, 8'
+        }).addTo(layers.route);
+
+        const filterContainer = document.getElementById('filters');
+        Object.entries(categories).forEach(([key, cat]) => {
+            const div = document.createElement('div');
+            div.className = 'filter-item';
+            div.innerHTML = `
+                <input type="checkbox" id="filter-${key}" checked>
+                <div class="legend-dot" style="background:${cat.color};"></div>
+                <span>${cat.name}</span>
+            `;
+            div.querySelector('input').addEventListener('change', e => {
+                if (e.target.checked) {
+                    map.addLayer(layers[key]);
+                } else {
+                    map.removeLayer(layers[key]);
+                }
+            });
+            filterContainer.appendChild(div);
+        });
+    </script>
+</body>
+</html>
