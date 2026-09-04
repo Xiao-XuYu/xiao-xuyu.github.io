@@ -104,11 +104,10 @@ const AmapRoute = (function () {
         if (window.UI && UI.setAmapStatus) UI.setAmapStatus(text, level || 'err');
     }
 
-    async function drawDay(day, color) {
+    async function drawDay(day, color, errSink) {
         if (!enabled) return;
         const segs = [];
         const c = color || '#1e88e5';
-        let firstErr = '';
         for (let i = 0; i < day.points.length - 1; i++) {
             const a = day.points[i], b = day.points[i + 1];
             try {
@@ -116,7 +115,9 @@ const AmapRoute = (function () {
                 segs.push(seg);
             } catch (err) {
                 if (err.name === 'AbortError') return;
-                if (!firstErr) firstErr = a.name + '→' + b.name + ': ' + err.message;
+                if (errSink && errSink.length < 3) {
+                    errSink.push(a.name + '→' + b.name + ': ' + err.message);
+                }
                 console.warn('[AmapRoute]', a.name, '→', b.name, err.message);
             }
         }
@@ -144,14 +145,15 @@ const AmapRoute = (function () {
         const errors = [];
         setStatus('⏳ 正在请求高德驾车路径(共 ' + days.length + ' 段,可能需 5-15 秒)…', 'ok');
         for (let i = 0; i < days.length; i++) {
-            await drawDay(days[i], palette[i % palette.length]);
+            await drawDay(days[i], palette[i % palette.length], errors);
         }
         const okCount = dayPolylines.length;
         const fail = days.length - okCount;
         if (fail === 0) {
             setStatus('✅ 高德真实路径已叠加(' + okCount + ' 段)', 'ok');
         } else {
-            setStatus('⚠️ 失败 ' + fail + '/' + days.length + ' · 首个错误:' + (errors[0] || '见 console 日志(浏览器按 F12)'), 'err');
+            const sample = errors.length ? errors.slice(0, 3).join(' | ') : '见 console';
+            setStatus('⚠️ 失败 ' + fail + '/' + days.length + ' · 示例:' + sample, 'err');
         }
     }
 
