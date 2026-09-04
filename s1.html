@@ -2,194 +2,887 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="青甘大环线自驾旅游互动地图,汇集盐湖、丹霞、雅丹、莫高窟等核心景点与环线路线,支持分类筛选与景点详情查看。">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.0">
+    <meta name="description" content="青甘大环线自驾旅游互动地图,汇集盐湖、丹霞、雅丹、莫高窟等核心景点与环线路线,支持分类筛选、行程天数切换与景点详情查看。">
     <meta name="keywords" content="青甘大环线,青海甘肃旅游,自驾游,盐湖,茶卡盐湖,翡翠湖,莫高窟,七彩丹霞,雅丹,环线路线">
     <title>青甘大环线自驾地图 | 盐湖·丹霞·莫高窟景点导航</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: "Microsoft YaHei", Arial, sans-serif; }
-        #map { width: 100%; height: 100vh; }
-        .info-panel {
-            position: absolute; top: 10px; right: 10px;
-            background: rgba(255,255,255,0.95);
-            padding: 15px; border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 1000; max-width: 280px; max-height: 90vh;
-            overflow-y: auto; font-size: 13px;
+        :root {
+            --bg: #f7f8fa;
+            --card: #ffffff;
+            --text: #2c3e50;
+            --muted: #6b7785;
+            --border: #e6e8ec;
+            --accent: #2c7be5;
+            --shadow: 0 4px 16px rgba(20, 30, 60, .08);
+            --radius: 10px;
         }
-        .info-panel h3 { margin-bottom: 10px; color: #2c3e50; }
-        .legend { display: flex; align-items: center; margin: 5px 0; }
-        .legend-dot { width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; border: 2px solid white; box-shadow: 0 0 2px rgba(0,0,0,0.5); }
-        .filter-item { display: flex; align-items: center; padding: 4px 6px; cursor: pointer; border-radius: 4px; margin: 3px 0; }
-        .filter-item:hover { background: #f0f0f0; }
-        .filter-item input { margin-right: 8px; cursor: pointer; }
-        .popup-img { width: 200px; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 5px; }
-        .popup-title { font-weight: bold; font-size: 15px; color: #2c3e50; margin-bottom: 5px; }
-        .popup-desc { font-size: 12px; color: #555; line-height: 1.5; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                         "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            overflow: hidden;
+        }
+        #map { width: 100%; height: 100vh; }
+
+        /* ====== 侧边面板 ====== */
+        .panel {
+            position: absolute; top: 12px; right: 12px;
+            width: 320px; max-height: calc(100vh - 24px);
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            z-index: 1000;
+            display: flex; flex-direction: column;
+            font-size: 13px;
+        }
+        .panel-header {
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        .panel-header h2 {
+            font-size: 16px; color: var(--text);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .panel-header h2::before {
+            content: ""; width: 4px; height: 16px;
+            background: var(--accent); border-radius: 2px;
+        }
+        .panel-subtitle { color: var(--muted); font-size: 12px; margin-top: 4px; }
+        .panel-body { padding: 12px 16px 16px; overflow-y: auto; flex: 1; }
+        .section-title {
+            font-size: 12px; font-weight: 600; color: var(--muted);
+            text-transform: uppercase; letter-spacing: .5px;
+            margin: 12px 0 6px;
+        }
+        .section-title:first-child { margin-top: 0; }
+
+        /* ====== 搜索 ====== */
+        .search-box {
+            position: relative; margin-bottom: 4px;
+        }
+        .search-box input {
+            width: 100%; padding: 9px 12px 9px 34px;
+            border: 1px solid var(--border); border-radius: 8px;
+            background: #fafbfc; font-size: 13px;
+            transition: all .2s;
+        }
+        .search-box input:focus {
+            outline: none; border-color: var(--accent); background: #fff;
+            box-shadow: 0 0 0 3px rgba(44,123,229,.1);
+        }
+        .search-box::before {
+            content: "🔍"; position: absolute; left: 11px; top: 50%;
+            transform: translateY(-50%); font-size: 13px; opacity: .55;
+        }
+        .search-clear {
+            position: absolute; right: 8px; top: 50%;
+            transform: translateY(-50%);
+            background: none; border: none; cursor: pointer;
+            color: var(--muted); font-size: 16px; display: none;
+            padding: 4px; line-height: 1;
+        }
+        .search-clear.visible { display: block; }
+
+        /* ====== 行程切换 ====== */
+        .seg {
+            display: flex; background: #f0f2f5; padding: 3px;
+            border-radius: 8px; gap: 2px;
+        }
+        .seg button {
+            flex: 1; padding: 7px 0; border: none; background: transparent;
+            font-size: 12px; color: var(--muted); cursor: pointer;
+            border-radius: 6px; transition: all .2s; font-weight: 500;
+        }
+        .seg button.active {
+            background: #fff; color: var(--text);
+            box-shadow: 0 1px 3px rgba(0,0,0,.08); font-weight: 600;
+        }
+        .seg button:not(.active):hover { color: var(--text); }
+
+        /* ====== 筛选 ====== */
+        .filters { display: flex; flex-direction: column; gap: 2px; }
+        .filter-item {
+            display: flex; align-items: center; padding: 6px 8px;
+            cursor: pointer; border-radius: 6px;
+            transition: background .15s; user-select: none;
+        }
+        .filter-item:hover { background: #f5f7fa; }
+        .filter-item input { display: none; }
+        .filter-item .check {
+            width: 16px; height: 16px; border: 2px solid #c8ccd2;
+            border-radius: 4px; margin-right: 10px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all .15s; flex-shrink: 0;
+        }
+        .filter-item input:checked + .check {
+            background: var(--accent); border-color: var(--accent);
+        }
+        .filter-item input:checked + .check::after {
+            content: "✓"; color: #fff; font-size: 11px; font-weight: bold;
+        }
+        .legend-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            margin-right: 8px; flex-shrink: 0;
+        }
+        .filter-item span { flex: 1; }
+        .filter-count {
+            color: var(--muted); font-size: 11px;
+            background: #f0f2f5; padding: 1px 6px; border-radius: 8px;
+        }
+
+        /* ====== 每日行程列表 ====== */
+        .day-list { display: flex; flex-direction: column; gap: 6px; }
+        .day-item {
+            padding: 9px 11px; border-radius: 8px;
+            background: #fafbfc; border: 1px solid var(--border);
+            cursor: pointer; transition: all .15s;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .day-item:hover { border-color: var(--accent); background: #fff; }
+        .day-item.active {
+            border-color: var(--accent); background: #eaf2fe;
+            box-shadow: 0 0 0 2px rgba(44,123,229,.1);
+        }
+        .day-badge {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: var(--accent); color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 600; flex-shrink: 0;
+        }
+        .day-info { flex: 1; min-width: 0; }
+        .day-name {
+            font-size: 13px; font-weight: 600;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .day-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+        /* ====== 移动端折叠按钮 ====== */
+        .panel-toggle {
+            display: none;
+            position: absolute; top: 12px; right: 12px;
+            z-index: 1100; background: var(--card);
+            border: none; border-radius: 50%;
+            width: 44px; height: 44px;
+            box-shadow: var(--shadow); cursor: pointer;
+            font-size: 18px; color: var(--text);
+        }
+        .panel-close {
+            display: none;
+            position: absolute; top: 10px; right: 10px;
+            z-index: 1001; background: transparent;
+            border: none; font-size: 20px; cursor: pointer;
+            color: var(--muted); padding: 4px;
+        }
+
+        /* ====== 图例标记 ====== */
         .marker-label {
-            background: rgba(255,255,255,0.9);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 12px;
-            font-weight: bold;
-            color: #2c3e50;
-            border: 1px solid rgba(0,0,0,0.2);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            background: rgba(255,255,255,.95);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px; font-weight: 600;
+            color: var(--text);
+            border: 1px solid rgba(0,0,0,.1);
+            box-shadow: 0 1px 4px rgba(0,0,0,.15);
             white-space: nowrap;
+        }
+        .marker-label::before {
+            content: ""; display: inline-block;
+            width: 6px; height: 6px; border-radius: 50%;
+            background: currentColor; margin-right: 5px; vertical-align: middle;
+        }
+
+        /* ====== 弹窗 ====== */
+        .leaflet-popup-content-wrapper {
+            border-radius: 10px; padding: 0;
+            box-shadow: 0 6px 24px rgba(0,0,0,.15);
+        }
+        .leaflet-popup-content { margin: 0; width: 260px !important; }
+        .popup-img {
+            width: 100%; height: 130px; object-fit: cover;
+            display: block; background: #eef0f3;
+        }
+        .popup-body { padding: 12px 14px 14px; }
+        .popup-title {
+            font-weight: 700; font-size: 15px; color: var(--text);
+            margin-bottom: 6px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .popup-cat {
+            font-size: 10px; padding: 2px 7px; border-radius: 10px;
+            color: #fff; font-weight: 500;
+        }
+        .popup-desc { font-size: 12.5px; color: #555; line-height: 1.6; margin-bottom: 10px; }
+        .popup-meta {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px;
+            padding-top: 10px; border-top: 1px solid var(--border);
+            font-size: 11.5px;
+        }
+        .popup-meta-row {
+            display: flex; align-items: center; gap: 5px;
+            color: var(--muted);
+        }
+        .popup-meta-row .ico { font-size: 12px; }
+        .popup-meta-row .val { color: var(--text); font-weight: 500; }
+        .popup-actions {
+            display: flex; gap: 6px; margin-top: 12px;
+        }
+        .popup-btn {
+            flex: 1; padding: 6px 0; border: 1px solid var(--border);
+            background: #fff; border-radius: 6px;
+            font-size: 11.5px; color: var(--text);
+            cursor: pointer; text-align: center;
+            transition: all .15s; text-decoration: none;
+        }
+        .popup-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .popup-btn.primary {
+            background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+        .popup-btn.primary:hover { background: #1f6ad4; color: #fff; }
+
+        /* ====== 行程统计卡片 ====== */
+        .stats-bar {
+            position: absolute; left: 12px; top: 12px;
+            background: var(--card); padding: 10px 14px;
+            border-radius: var(--radius); box-shadow: var(--shadow);
+            z-index: 1000; font-size: 12px;
+            display: flex; gap: 18px;
+        }
+        .stat { display: flex; flex-direction: column; align-items: center; }
+        .stat-val { font-size: 16px; font-weight: 700; color: var(--accent); }
+        .stat-label { color: var(--muted); font-size: 11px; margin-top: 1px; }
+
+        /* ====== 响应式 ====== */
+        @media (max-width: 768px) {
+            .stats-bar { padding: 8px 12px; gap: 12px; font-size: 11px; }
+            .stat-val { font-size: 14px; }
+            .panel {
+                position: fixed; top: 0; right: -100%;
+                width: 86%; max-width: 340px; height: 100vh;
+                max-height: 100vh; border-radius: 0;
+                transition: right .25s ease-out;
+            }
+            .panel.open { right: 0; }
+            .panel-toggle { display: flex; align-items: center; justify-content: center; }
+            .panel-close { display: block; }
+            .leaflet-popup-content { width: 220px !important; }
+        }
+
+        /* ====== 滚动条 ====== */
+        .panel-body::-webkit-scrollbar { width: 5px; }
+        .panel-body::-webkit-scrollbar-thumb { background: #d0d4da; border-radius: 3px; }
+        .panel-body::-webkit-scrollbar-track { background: transparent; }
+
+        /* ====== 空状态 ====== */
+        .empty {
+            text-align: center; padding: 20px 10px;
+            color: var(--muted); font-size: 12px;
+        }
+        .empty-icon { font-size: 28px; margin-bottom: 6px; opacity: .5; }
+
+        /* ====== 加载 ====== */
+        .leaflet-control-attribution {
+            font-size: 10px !important; background: rgba(255,255,255,.7) !important;
         }
     </style>
 </head>
 <body>
     <div id="map"></div>
-    <div class="info-panel">
-        <h3>青甘大环线地图</h3>
-        <div id="filters"></div>
+
+    <div class="stats-bar" id="statsBar">
+        <div class="stat"><div class="stat-val" id="statDistance">0</div><div class="stat-label">公里</div></div>
+        <div class="stat"><div class="stat-val" id="statDays">0</div><div class="stat-label">天</div></div>
+        <div class="stat"><div class="stat-val" id="statSpots">0</div><div class="stat-label">景点</div></div>
+        <div class="stat"><div class="stat-val" id="statLakes">0</div><div class="stat-label">盐湖</div></div>
     </div>
+
+    <button class="panel-toggle" id="panelToggle" title="菜单">☰</button>
+
+    <aside class="panel" id="panel">
+        <button class="panel-close" id="panelClose" title="关闭">✕</button>
+        <div class="panel-header">
+            <h2>青甘大环线</h2>
+            <div class="panel-subtitle">青海 · 甘肃 · 河西走廊自驾地图</div>
+        </div>
+        <div class="panel-body">
+
+            <div class="section-title">搜索景点</div>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="输入景点/城市名称">
+                <button class="search-clear" id="searchClear">✕</button>
+            </div>
+
+            <div class="section-title">行程天数</div>
+            <div class="seg" id="daySeg">
+                <button data-days="6">6 天</button>
+                <button data-days="7" class="active">7 天(经典)</button>
+                <button data-days="8">8 天</button>
+                <button data-days="9">9 天</button>
+            </div>
+
+            <div class="section-title">每日路线</div>
+            <div class="day-list" id="dayList"></div>
+
+            <div class="section-title">分类筛选</div>
+            <div class="filters" id="filters"></div>
+
+            <div class="section-title">关于</div>
+            <div style="font-size:12px;color:var(--muted);line-height:1.6;padding:0 2px;">
+                点击地图标记查看景点详情;切换行程天数可查看对应每日路线。
+            </div>
+        </div>
+    </aside>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const map = L.map('map').setView([37.5, 95.5], 6);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+    /* ========== 数据 ========== */
+    const categories = {
+        salt_lake: { name: '盐湖', color: '#e74c3c', emoji: '🧂' },
+        city:      { name: '主要城市', color: '#3498db', emoji: '🏙️' },
+        scenic:    { name: '常规景点', color: '#27ae60', emoji: '🏞️' },
+        route:     { name: '环线路线', color: '#f39c12', emoji: '🛣️' }
+    };
 
-        const categories = {
-            salt_lake: { name: '盐湖', color: '#e74c3c' },
-            city:      { name: '主要城市', color: '#3498db' },
-            scenic:    { name: '常规景点', color: '#27ae60' },
-            route:     { name: '环线路线', color: '#f39c12' }
-        };
+    const saltLakes = [
+        { name:'察尔汗盐湖', lat:36.75, lng:95.30,
+          cat:'salt_lake',
+          desc:'亚洲最大、世界第二盐湖,湖水呈通透的苹果绿,有"万丈盐桥"和盐花奇观。',
+          ticket:'¥40 + 大巴¥60', best:'6-9月', tip:'晴天上午光线最佳,盐花需无人机视角',
+          img:'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Chaerhan%20Salt%20Lake%20Qinghai%20vast%20green%20emerald%20water%20salt%20bridge%20aerial%20view&image_size=landscape_4_3' },
+        { name:'大柴旦翡翠湖', lat:37.85, lng:95.36,
+          cat:'salt_lake',
+          desc:'数十个大小盐池组成,因矿物质不同呈现蓝、绿、黄等多种色彩,犹如散落人间的"调色板"。',
+          ticket:'¥50-60', best:'6-9月', tip:'傍晚日落时色彩最饱和,建议带无人机',
+          img:'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Da%20Chaidan%20Emerald%20Lake%20Qinghai%20colorful%20turquoise%20pools%20mineral%20colors%20aerial&image_size=landscape_4_3' },
+        { name:'茶卡盐湖', lat:36.69, lng:99.10,
+          cat:'salt_lake',
+          desc:'老牌网红"天空之镜",湖面平坦如镜,晴天完美倒映天空,拍出"水上漂"效果。',
+          ticket:'¥60 + 小火车¥50', best:'6-8月', tip:'晴天中午前往,穿鲜艳颜色衣服',
+          img:'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Chaka%20Salt%20Lake%20Sky%20Mirror%20Qinghai%20reflection%20white%20salt%20flat%20lake&image_size=landscape_4_3' },
+        { name:'茫崖翡翠湖', lat:38.35, lng:90.85,
+          cat:'salt_lake',
+          desc:'环线西端的隐世秘境,色彩宛如上好的翡翠,路途遥远游客稀少更显宁静。',
+          ticket:'免费', best:'6-9月', tip:'需从敦煌/格尔木包车前往,路况复杂',
+          img:'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Mangya%20Emerald%20Lake%20Qinghai%20green%20emerald%20water%20hidden%20secret%20desert&image_size=landscape_4_3' },
+        { name:'东台吉乃尔湖', lat:37.42, lng:93.85,
+          cat:'salt_lake',
+          desc:'被誉为"中国版马尔代夫",Tiffany蓝湖水,水天一色。',
+          ticket:'免费', best:'6-9月', tip:'可能季节性消失,出发前查路况',
+          img:'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=East%20Taijnar%20Lake%20Maldives%20of%20China%20Tiffany%20blue%20water%20white%20beach&image_size=landscape_4_3' },
+        { name:'西台吉乃尔湖', lat:37.55, lng:93.45,
+          cat:'salt_lake',
+          desc:'G315国道旁的"双色湖",公路从中穿过,两侧湖水颜色迥异,一蓝一绿奇观。',
+          ticket:'免费', best:'6-9月', tip:'注意横穿公路拍照安全',
+          img:'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=West%20Taijnar%20Lake%20two%20color%20blue%20green%20G315%20highway%20Qinghai%20aerial&image_size=landscape_4_3' }
+    ];
 
-        const layers = {};
-        Object.keys(categories).forEach(k => layers[k] = L.layerGroup().addTo(map));
+    const cities = [
+        { name:'西宁', lat:36.62, lng:101.78, cat:'city',
+          desc:'青甘大环线起点,青海省会,海拔2261米。',
+          ticket:'—', best:'全年', tip:'可品尝青稞、酿皮、牦牛肉' },
+        { name:'兰州', lat:36.06, lng:103.83, cat:'city',
+          desc:'甘肃省会,可作为环线东部起点,黄河穿城而过。',
+          ticket:'—', best:'全年', tip:'正宁路夜市必尝牛奶鸡蛋醪糟' },
+        { name:'敦煌', lat:40.14, lng:94.66, cat:'city',
+          desc:'丝路重镇,莫高窟、鸣沙山月牙泉所在地。',
+          ticket:'—', best:'5-10月', tip:'建议住2晚看日落日出' },
+        { name:'嘉峪关', lat:39.77, lng:98.29, cat:'city',
+          desc:'明代万里长城西端起点。',
+          ticket:'—', best:'5-10月', tip:'关城+悬臂长城+长城第一墩联票更划算' },
+        { name:'张掖', lat:38.93, lng:100.45, cat:'city',
+          desc:'七彩丹霞所在地,河西走廊重镇。',
+          ticket:'—', best:'6-9月', tip:'傍晚看丹霞色彩最艳' },
+        { name:'德令哈', lat:37.37, lng:97.37, cat:'city',
+          desc:'海西州首府,环线中段重要补给站。',
+          ticket:'—', best:'全年', tip:'海子诗歌陈列馆值得一访' },
+        { name:'格尔木', lat:36.41, lng:94.91, cat:'city',
+          desc:'进藏门户,察尔汗盐湖所在地。',
+          ticket:'—', best:'6-9月', tip:'海拔2780米,注意高反' },
+        { name:'大柴旦', lat:37.85, lng:95.36, cat:'city',
+          desc:'翡翠湖所在地,环线中转小镇。',
+          ticket:'—', best:'6-9月', tip:'镇上住宿紧张,提前预订' },
+        { name:'茫崖', lat:38.35, lng:90.85, cat:'city',
+          desc:'新疆青海交界,茫崖翡翠湖所在地。',
+          ticket:'—', best:'6-9月', tip:'建议作为环线延伸段' }
+    ];
 
-        const saltLakes = [
-            { name: '察尔汗盐湖', lat: 36.75, lng: 95.30, desc: '亚洲最大、世界第二盐湖,湖水呈通透的苹果绿,有"万丈盐桥"和盐花奇观。门票约40元,大巴60元。',
-              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Chaerhan%20Salt%20Lake%20Qinghai%20vast%20green%20emerald%20water%20salt%20bridge%20aerial%20view&image_size=landscape_4_3' },
-            { name: '大柴旦翡翠湖', lat: 37.85, lng: 95.36, desc: '数十个大小盐池组成,因矿物质不同呈现蓝、绿、黄等多种色彩,犹如散落人间的"调色板"。门票约50-60元。',
-              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Da%20Chaidan%20Emerald%20Lake%20Qinghai%20colorful%20turquoise%20pools%20mineral%20colors%20aerial&image_size=landscape_4_3' },
-            { name: '茶卡盐湖', lat: 36.69, lng: 99.10, desc: '老牌网红"天空之镜",湖面平坦如镜,晴天完美倒映天空,拍出"水上漂"效果。门票60元,小火车50元。',
-              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Chaka%20Salt%20Lake%20Sky%20Mirror%20Qinghai%20reflection%20white%20salt%20flat%20lake&image_size=landscape_4_3' },
-            { name: '茫崖翡翠湖', lat: 38.35, lng: 90.85, desc: '环线西端的隐世秘境,色彩宛如上好的翡翠,路途遥远游客稀少更显宁静,目前暂无门票。',
-              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Mangya%20Emerald%20Lake%20Qinghai%20green%20emerald%20water%20hidden%20secret%20desert&image_size=landscape_4_3' },
-            { name: '东台吉乃尔湖', lat: 37.42, lng: 93.85, desc: '被誉为"中国版马尔代夫",Tiffany蓝湖水,水天一色。注意:可能会季节性消失。',
-              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=East%20Taijnar%20Lake%20Maldives%20of%20China%20Tiffany%20blue%20water%20white%20beach&image_size=landscape_4_3' },
-            { name: '西台吉乃尔湖', lat: 37.55, lng: 93.45, desc: 'G315国道旁的"双色湖",公路从中穿过,两侧湖水颜色迥异,一蓝一绿奇观。',
-              img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=West%20Taijnar%20Lake%20two%20color%20blue%20green%20G315%20highway%20Qinghai%20aerial&image_size=landscape_4_3' }
-        ];
+    const scenics = [
+        { name:'莫高窟', lat:40.04, lng:94.81, cat:'scenic',
+          desc:'世界文化遗产,千佛洞,佛教艺术宝库。',
+          ticket:'¥238(需预约)', best:'5-10月', tip:'提前1个月官网预约,A类票含数字中心' },
+        { name:'鸣沙山月牙泉', lat:40.11, lng:94.67, cat:'scenic',
+          desc:'沙漠中的奇景,月牙形泉水千年不涸。',
+          ticket:'¥110', best:'5-10月', tip:'可滑沙、骑骆驼,看日落绝佳' },
+        { name:'嘉峪关关城', lat:39.77, lng:98.27, cat:'scenic',
+          desc:'明代长城西端起点,"天下第一雄关"。',
+          ticket:'¥110', best:'5-10月', tip:'联票含悬臂长城+第一墩' },
+        { name:'张掖七彩丹霞', lat:38.93, lng:100.07, cat:'scenic',
+          desc:'中国最美丹霞地貌之一,色彩斑斓如调色板。',
+          ticket:'¥74 + 车¥20', best:'6-9月', tip:'雨后色彩最艳,傍晚光线最佳' },
+        { name:'雅丹魔鬼城', lat:40.45, lng:93.10, cat:'scenic',
+          desc:'柴达木盆地西北部的风蚀地貌群,西海舰队奇观。',
+          ticket:'¥120 含观光车', best:'5-10月', tip:'注意防晒防风,景区无遮挡' },
+        { name:'阳关', lat:39.93, lng:94.10, cat:'scenic',
+          desc:'古代丝绸之路南道重要关隘,"西出阳关无故人"。',
+          ticket:'¥50 + 车¥10', best:'5-10月', tip:'可骑骆驼穿越沙漠' },
+        { name:'玉门关', lat:40.37, lng:93.87, cat:'scenic',
+          desc:'汉代边塞遗址,羌笛何须怨杨柳。',
+          ticket:'¥40 + 车¥50', best:'5-10月', tip:'与雅丹魔鬼城、河仓城联票更划算' },
+        { name:'石油小镇', lat:38.62, lng:92.45, cat:'scenic',
+          desc:'废弃的冷湖石油基地,《九层妖塔》取景地。',
+          ticket:'¥20', best:'5-10月', tip:'越野基地,可体验戈道自驾' },
+        { name:'可鲁克湖', lat:37.28, lng:96.85, cat:'scenic',
+          desc:'德令哈附近,水草丰美的湿地湖泊。',
+          ticket:'免费', best:'6-9月', tip:'芦苇荡中观鸟胜地' },
+        { name:'水上雅丹', lat:38.05, lng:93.85, cat:'scenic',
+          desc:'世界上唯一一片在水中的雅丹地貌,乌素特水上雅丹。',
+          ticket:'¥60 + 车¥30', best:'5-10月', tip:'日落时分金黄色最美' },
+        { name:'火星营地', lat:38.42, lng:92.95, cat:'scenic',
+          desc:'冷湖火星小镇,体验火星生存的科幻基地。',
+          ticket:'¥98-198', best:'5-10月', tip:'可住宿火星舱/太空舱,体验宇航服' }
+    ];
 
-        const cities = [
-            { name: '西宁', lat: 36.62, lng: 101.78, desc: '青甘大环线起点,青海省会,海拔2261米。' },
-            { name: '兰州', lat: 36.06, lng: 103.83, desc: '甘肃省会,可作为环线东部起点,黄河穿城而过。' },
-            { name: '敦煌', lat: 40.14, lng: 94.66, desc: '丝路重镇,莫高窟、鸣沙山月牙泉所在地。' },
-            { name: '嘉峪关', lat: 39.77, lng: 98.29, desc: '明代万里长城西端起点。' },
-            { name: '张掖', lat: 38.93, lng: 100.45, desc: '七彩丹霞所在地,河西走廊重镇。' },
-            { name: '德令哈', lat: 37.37, lng: 97.37, desc: '海西州首府,环线中段重要补给站。' },
-            { name: '格尔木', lat: 36.41, lng: 94.91, desc: '进藏门户,察尔汗盐湖所在地。' },
-            { name: '大柴旦', lat: 37.85, lng: 95.36, desc: '翡翠湖所在地,环线中转小镇。' },
-            { name: '茫崖', lat: 38.35, lng: 90.85, desc: '新疆青海交界,茫崖翡翠湖所在地。' }
-        ];
+    // 每日分段(按 7 天经典环线,带距离信息)
+    const dayRoutes = {
+        6: [
+            { name:'D1 西宁→青海湖→茶卡', km:300, points:[
+                { name:'西宁', lat:36.62, lng:101.78 },
+                { name:'青海湖', lat:36.95, lng:100.18 },
+                { name:'茶卡盐湖', lat:36.69, lng:99.10 }
+            ]},
+            { name:'D2 茶卡→德令哈→大柴旦', km:530, points:[
+                { name:'茶卡盐湖', lat:36.69, lng:99.10 },
+                { name:'德令哈', lat:37.37, lng:97.37 },
+                { name:'可鲁克湖', lat:37.28, lng:96.85 },
+                { name:'大柴旦翡翠湖', lat:37.85, lng:95.36 }
+            ]},
+            { name:'D3 大柴旦→水上雅丹→敦煌', km:540, points:[
+                { name:'大柴旦', lat:37.85, lng:95.36 },
+                { name:'水上雅丹', lat:38.05, lng:93.85 },
+                { name:'西台吉乃尔湖', lat:37.55, lng:93.45 },
+                { name:'雅丹魔鬼城', lat:40.45, lng:93.10 },
+                { name:'敦煌', lat:40.14, lng:94.66 }
+            ]},
+            { name:'D4 敦煌一日游', km:80, points:[
+                { name:'莫高窟', lat:40.04, lng:94.81 },
+                { name:'鸣沙山月牙泉', lat:40.11, lng:94.67 },
+                { name:'敦煌', lat:40.14, lng:94.66 }
+            ]},
+            { name:'D5 敦煌→嘉峪关→张掖', km:600, points:[
+                { name:'敦煌', lat:40.14, lng:94.66 },
+                { name:'嘉峪关', lat:39.77, lng:98.29 },
+                { name:'张掖七彩丹霞', lat:38.93, lng:100.07 }
+            ]},
+            { name:'D6 张掖→门源→西宁', km:400, points:[
+                { name:'张掖', lat:38.93, lng:100.45 },
+                { name:'祁连大草原', lat:38.18, lng:100.25 },
+                { name:'门源油菜花', lat:37.38, lng:101.62 },
+                { name:'西宁', lat:36.62, lng:101.78 }
+            ]}
+        ],
+        7: [
+            { name:'D1 西宁→青海湖→茶卡', km:300, points:[
+                { name:'西宁', lat:36.62, lng:101.78 },
+                { name:'青海湖', lat:36.95, lng:100.18 },
+                { name:'茶卡盐湖', lat:36.69, lng:99.10 }
+            ]},
+            { name:'D2 茶卡→德令哈→大柴旦', km:530, points:[
+                { name:'茶卡盐湖', lat:36.69, lng:99.10 },
+                { name:'德令哈', lat:37.37, lng:97.37 },
+                { name:'可鲁克湖', lat:37.28, lng:96.85 },
+                { name:'大柴旦翡翠湖', lat:37.85, lng:95.36 }
+            ]},
+            { name:'D3 大柴旦→察尔汗→格尔木', km:320, points:[
+                { name:'大柴旦', lat:37.85, lng:95.36 },
+                { name:'察尔汗盐湖', lat:36.75, lng:95.30 },
+                { name:'格尔木', lat:36.41, lng:94.91 }
+            ]},
+            { name:'D4 格尔木→水上雅丹→敦煌', km:580, points:[
+                { name:'格尔木', lat:36.41, lng:94.91 },
+                { name:'水上雅丹', lat:38.05, lng:93.85 },
+                { name:'西台吉乃尔湖', lat:37.55, lng:93.45 },
+                { name:'东台吉乃尔湖', lat:37.42, lng:93.85 },
+                { name:'雅丹魔鬼城', lat:40.45, lng:93.10 },
+                { name:'敦煌', lat:40.14, lng:94.66 }
+            ]},
+            { name:'D5 敦煌一日游', km:80, points:[
+                { name:'莫高窟', lat:40.04, lng:94.81 },
+                { name:'鸣沙山月牙泉', lat:40.11, lng:94.67 },
+                { name:'阳关', lat:39.93, lng:94.10 },
+                { name:'敦煌', lat:40.14, lng:94.66 }
+            ]},
+            { name:'D6 敦煌→嘉峪关→张掖', km:600, points:[
+                { name:'敦煌', lat:40.14, lng:94.66 },
+                { name:'玉门关', lat:40.37, lng:93.87 },
+                { name:'嘉峪关', lat:39.77, lng:98.29 },
+                { name:'张掖七彩丹霞', lat:38.93, lng:100.07 }
+            ]},
+            { name:'D7 张掖→门源→西宁', km:400, points:[
+                { name:'张掖', lat:38.93, lng:100.45 },
+                { name:'祁连大草原', lat:38.18, lng:100.25 },
+                { name:'门源油菜花', lat:37.38, lng:101.62 },
+                { name:'西宁', lat:36.62, lng:101.78 }
+            ]}
+        ],
+        8: [
+            { name:'D1 西宁→青海湖', km:260, points:[
+                { name:'西宁', lat:36.62, lng:101.78 },
+                { name:'青海湖', lat:36.95, lng:100.18 }
+            ]},
+            { name:'D2 青海湖→茶卡', km:200, points:[
+                { name:'青海湖', lat:36.95, lng:100.18 },
+                { name:'茶卡盐湖', lat:36.69, lng:99.10 }
+            ]},
+            { name:'D3 茶卡→德令哈→大柴旦', km:530, points:[
+                { name:'茶卡盐湖', lat:36.69, lng:99.10 },
+                { name:'德令哈', lat:37.37, lng:97.37 },
+                { name:'大柴旦翡翠湖', lat:37.85, lng:95.36 }
+            ]},
+            { name:'D4 大柴旦→察尔汗→格尔木', km:320, points:[
+                { name:'大柴旦', lat:37.85, lng:95.36 },
+                { name:'察尔汗盐湖', lat:36.75, lng:95.30 },
+                { name:'格尔木', lat:36.41, lng:94.91 }
+            ]},
+            { name:'D5 格尔木→水上雅丹→花土沟', km:540, points:[
+                { name:'格尔木', lat:36.41, lng:94.91 },
+                { name:'水上雅丹', lat:38.05, lng:93.85 },
+                { name:'火星营地', lat:38.42, lng:92.95 },
+                { name:'石油小镇', lat:38.62, lng:92.45 },
+                { name:'茫崖翡翠湖', lat:38.35, lng:90.85 }
+            ]},
+            { name:'D6 茫崖→敦煌', km:480, points:[
+                { name:'茫崖翡翠湖', lat:38.35, lng:90.85 },
+                { name:'雅丹魔鬼城', lat:40.45, lng:93.10 },
+                { name:'敦煌', lat:40.14, lng:94.66 }
+            ]},
+            { name:'D7 敦煌→嘉峪关→张掖', km:600, points:[
+                { name:'莫高窟', lat:40.04, lng:94.81 },
+                { name:'鸣沙山月牙泉', lat:40.11, lng:94.67 },
+                { name:'嘉峪关', lat:39.77, lng:98.29 },
+                { name:'张掖七彩丹霞', lat:38.93, lng:100.07 }
+            ]},
+            { name:'D8 张掖→西宁', km:400, points:[
+                { name:'张掖', lat:38.93, lng:100.45 },
+                { name:'祁连大草原', lat:38.18, lng:100.25 },
+                { name:'门源油菜花', lat:37.38, lng:101.62 },
+                { name:'西宁', lat:36.62, lng:101.78 }
+            ]}
+        ],
+        9: [
+            { name:'D1 西宁→青海湖', km:260, points:[
+                { name:'西宁', lat:36.62, lng:101.78 },
+                { name:'青海湖', lat:36.95, lng:100.18 }
+            ]},
+            { name:'D2 青海湖→茶卡', km:200, points:[
+                { name:'青海湖', lat:36.95, lng:100.18 },
+                { name:'茶卡盐湖', lat:36.69, lng:99.10 }
+            ]},
+            { name:'D3 茶卡→德令哈', km:340, points:[
+                { name:'茶卡盐湖', lat:36.69, lng:99.10 },
+                { name:'德令哈', lat:37.37, lng:97.37 },
+                { name:'可鲁克湖', lat:37.28, lng:96.85 }
+            ]},
+            { name:'D4 德令哈→大柴旦→格尔木', km:420, points:[
+                { name:'德令哈', lat:37.37, lng:97.37 },
+                { name:'大柴旦翡翠湖', lat:37.85, lng:95.36 },
+                { name:'察尔汗盐湖', lat:36.75, lng:95.30 },
+                { name:'格尔木', lat:36.41, lng:94.91 }
+            ]},
+            { name:'D5 格尔木→水上雅丹', km:420, points:[
+                { name:'格尔木', lat:36.41, lng:94.91 },
+                { name:'西台吉乃尔湖', lat:37.55, lng:93.45 },
+                { name:'东台吉乃尔湖', lat:37.42, lng:93.85 },
+                { name:'水上雅丹', lat:38.05, lng:93.85 }
+            ]},
+            { name:'D6 水上雅丹→茫崖', km:380, points:[
+                { name:'水上雅丹', lat:38.05, lng:93.85 },
+                { name:'火星营地', lat:38.42, lng:92.95 },
+                { name:'石油小镇', lat:38.62, lng:92.45 },
+                { name:'茫崖翡翠湖', lat:38.35, lng:90.85 }
+            ]},
+            { name:'D7 茫崖→敦煌', km:480, points:[
+                { name:'茫崖翡翠湖', lat:38.35, lng:90.85 },
+                { name:'雅丹魔鬼城', lat:40.45, lng:93.10 },
+                { name:'玉门关', lat:40.37, lng:93.87 },
+                { name:'敦煌', lat:40.14, lng:94.66 }
+            ]},
+            { name:'D8 敦煌一日游', km:120, points:[
+                { name:'莫高窟', lat:40.04, lng:94.81 },
+                { name:'鸣沙山月牙泉', lat:40.11, lng:94.67 },
+                { name:'阳关', lat:39.93, lng:94.10 },
+                { name:'敦煌', lat:40.14, lng:94.66 }
+            ]},
+            { name:'D9 敦煌→嘉峪关→张掖→西宁', km:1000, points:[
+                { name:'敦煌', lat:40.14, lng:94.66 },
+                { name:'嘉峪关', lat:39.77, lng:98.29 },
+                { name:'张掖七彩丹霞', lat:38.93, lng:100.07 },
+                { name:'祁连大草原', lat:38.18, lng:100.25 },
+                { name:'西宁', lat:36.62, lng:101.78 }
+            ]}
+        ]
+    };
 
-        const scenics = [
-            { name: '莫高窟', lat: 40.04, lng: 94.81, desc: '世界文化遗产,千佛洞,佛教艺术宝库。门票238元,需提前预约。' },
-            { name: '鸣沙山月牙泉', lat: 40.11, lng: 94.67, desc: '沙漠中的奇景,月牙形泉水千年不涸。门票110元。' },
-            { name: '嘉峪关关城', lat: 39.77, lng: 98.27, desc: '明代长城西端起点,"天下第一雄关"。门票110元。' },
-            { name: '张掖七彩丹霞', lat: 38.93, lng: 100.07, desc: '中国最美丹霞地貌之一,色彩斑斓如调色板。门票74元。' },
-            { name: '雅丹魔鬼城', lat: 40.45, lng: 93.10, desc: '柴达木盆地西北部的风蚀地貌群,西海舰队奇观。门票120元含观光车。' },
-            { name: '阳关', lat: 39.93, lng: 94.10, desc: '古代丝绸之路南道重要关隘,"西出阳关无故人"。门票50元。' },
-            { name: '玉门关', lat: 40.37, lng: 93.87, desc: '汉代边塞遗址,羌笛何须怨杨柳。门票40元。' },
-            { name: '石油小镇', lat: 38.62, lng: 92.45, desc: '废弃的冷湖石油基地,《九层妖塔》取景地。门票20元。' },
-            { name: '可鲁克湖', lat: 37.28, lng: 96.85, desc: '德令哈附近,水草丰美的湿地湖泊。' },
-            { name: '阿克塞石油小镇', lat: 39.55, lng: 94.10, desc: '影视基地,《西风烈》《九层妖塔》取景地。' },
-            { name: '水上雅丹', lat: 38.05, lng: 93.85, desc: '世界上唯一一片在水中的雅丹地貌,乌素特水上雅丹。门票60元。' },
-            { name: '火星营地', lat: 38.42, lng: 92.95, desc: '冷湖火星小镇,体验火星生存的科幻基地。' }
-        ];
+    // 按景点名索引每日位置(用于弹窗跳转)
+    const dayIndexMap = {};
 
-        const routePoints = [
-            { name: '西宁', lat: 36.62, lng: 101.78 },
-            { name: '青海湖', lat: 36.95, lng: 100.18 },
-            { name: '茶卡盐湖', lat: 36.69, lng: 99.10 },
-            { name: '德令哈', lat: 37.37, lng: 97.37 },
-            { name: '大柴旦翡翠湖', lat: 37.85, lng: 95.36 },
-            { name: '察尔汗盐湖', lat: 36.75, lng: 95.30 },
-            { name: '格尔木', lat: 36.41, lng: 94.91 },
-            { name: '水上雅丹', lat: 38.05, lng: 93.85 },
-            { name: '西台吉乃尔湖', lat: 37.55, lng: 93.45 },
-            { name: '东台吉乃尔湖', lat: 37.42, lng: 93.85 },
-            { name: '茫崖翡翠湖', lat: 38.35, lng: 90.85 },
-            { name: '火星营地', lat: 38.42, lng: 92.95 },
-            { name: '石油小镇', lat: 38.62, lng: 92.45 },
-            { name: '雅丹魔鬼城', lat: 40.45, lng: 93.10 },
-            { name: '敦煌', lat: 40.14, lng: 94.66 },
-            { name: '嘉峪关', lat: 39.77, lng: 98.29 },
-            { name: '张掖七彩丹霞', lat: 38.93, lng: 100.07 },
-            { name: '祁连大草原', lat: 38.18, lng: 100.25 },
-            { name: '门源油菜花', lat: 37.38, lng: 101.62 },
-            { name: '西宁', lat: 36.62, lng: 101.78 }
-        ];
+    /* ========== 地图初始化 ========== */
+    const map = L.map('map', { zoomControl: false }).setView([37.5, 95.5], 6);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap', maxZoom: 18
+    }).addTo(map);
 
-        function createMarker(lat, lng, name, desc, img, color) {
-            const icon = L.divIcon({
-                className: 'custom-marker',
-                html: `<div style="background:${color};width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 0 4px rgba(0,0,0,0.6);"></div>`,
-                iconSize: [18, 18],
-                iconAnchor: [9, 9]
+    const layers = {};
+    Object.keys(categories).forEach(k => layers[k] = L.layerGroup().addTo(map));
+
+    /* ========== 工具:距离 ========== */
+    function haversine(a, b) {
+        const R = 6371;
+        const toRad = d => d * Math.PI / 180;
+        const dLat = toRad(b.lat - a.lat);
+        const dLng = toRad(b.lng - a.lng);
+        const x = Math.sin(dLat/2)**2 +
+                  Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) *
+                  Math.sin(dLng/2)**2;
+        return 2 * R * Math.asin(Math.sqrt(x));
+    }
+
+    /* ========== 弹窗 ========== */
+    function createMarker(item, catKey) {
+        const cat = categories[catKey];
+        const icon = L.divIcon({
+            className: 'custom-marker',
+            html: `<div style="background:${cat.color};width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 0 4px rgba(0,0,0,.6);"></div>`,
+            iconSize: [18, 18], iconAnchor: [9, 9]
+        });
+        const dayInfo = dayIndexMap[item.name];
+        const dayLabel = dayInfo ? `${dayInfo.day} · ${dayInfo.label}` : '';
+        const popupContent = `
+            ${item.img ? `<img src="${item.img}" class="popup-img" loading="lazy" onerror="this.style.display='none'">` : ''}
+            <div class="popup-body">
+                <div class="popup-title">
+                    ${item.name}
+                    <span class="popup-cat" style="background:${cat.color};">${cat.name}</span>
+                </div>
+                ${dayLabel ? `<div style="font-size:11px;color:var(--accent);margin-bottom:6px;font-weight:500;">📅 ${dayLabel}</div>` : ''}
+                <div class="popup-desc">${item.desc}</div>
+                <div class="popup-meta">
+                    <div class="popup-meta-row"><span class="ico">🎫</span><span class="val">${item.ticket || '—'}</span></div>
+                    <div class="popup-meta-row"><span class="ico">🗓️</span><span class="val">${item.best || '—'}</span></div>
+                </div>
+                ${item.tip ? `<div style="margin-top:10px;padding:8px 10px;background:#fff8e6;border-radius:6px;font-size:11.5px;color:#8a6d3b;line-height:1.5;">💡 ${item.tip}</div>` : ''}
+                <div class="popup-actions">
+                    <a class="popup-btn primary" target="_blank"
+                      href="https://uri.amap.com/marker?position=${item.lng},${item.lat}&name=${encodeURIComponent(item.name)}&src=mapp">高德地图</a>
+                    <a class="popup-btn" target="_blank"
+                      href="https://www.google.com/maps?q=${item.lat},${item.lng}">Google Maps</a>
+                </div>
+            </div>`;
+        return L.marker([item.lat, item.lng], { icon, title: item.name })
+            .bindPopup(popupContent, { maxWidth: 280, minWidth: 240 })
+            .bindTooltip(item.name, {
+                permanent: true, direction: 'right', offset: [10, 0],
+                className: 'marker-label'
             });
-            const popupContent = `
-                ${img ? `<img src="${img}" class="popup-img" onerror="this.style.display='none'">` : ''}
-                <div class="popup-title">${name}</div>
-                <div class="popup-desc">${desc}</div>
-            `;
-            return L.marker([lat, lng], { icon })
-                .bindPopup(popupContent, { maxWidth: 240 })
-                .bindTooltip(name, {
-                    permanent: true,
-                    direction: 'right',
-                    offset: [10, 0],
-                    className: 'marker-label'
-                });
-        }
+    }
 
-        saltLakes.forEach(item => {
-            createMarker(item.lat, item.lng, item.name, item.desc, item.img, categories.salt_lake.color)
-                .addTo(layers.salt_lake);
+    /* ========== 添加所有标记 ========== */
+    const allMarkers = [];
+    const allItems = [
+        ...saltLakes.map(x => ({...x, cat:'salt_lake'})),
+        ...cities.map(x => ({...x, cat:'city'})),
+        ...scenics.map(x => ({...x, cat:'scenic'}))
+    ];
+    allItems.forEach(item => {
+        const m = createMarker(item, item.cat);
+        m.addTo(layers[item.cat]);
+        m._data = item;
+        allMarkers.push(m);
+    });
+
+    /* ========== 路线层 ========== */
+    const routeLayer = L.layerGroup().addTo(layers.route);
+    let currentDayLayer = null;
+    const routeColorPalette = ['#f39c12','#e74c3c','#9b59b6','#3498db','#1abc9c','#27ae60','#e67e22','#34495e','#16a085'];
+
+    function clearRoutes() { routeLayer.clearLayers(); currentDayLayer = null; }
+
+    function drawDayRoutes(days, highlightIdx = -1) {
+        clearRoutes();
+        days.forEach((day, idx) => {
+            const coords = day.points.map(p => [p.lat, p.lng]);
+            const color = routeColorPalette[idx % routeColorPalette.length];
+            const poly = L.polyline(coords, {
+                color, weight: highlightIdx === -1 ? 4 : (idx === highlightIdx ? 7 : 3),
+                opacity: highlightIdx === -1 ? 0.75 : (idx === highlightIdx ? 0.95 : 0.35),
+                dashArray: '8, 6'
+            }).addTo(routeLayer);
+            poly.bindTooltip(`${day.name} · ${day.km}km`, { sticky: true });
+            if (idx === highlightIdx) currentDayLayer = poly;
         });
+    }
 
-        cities.forEach(item => {
-            createMarker(item.lat, item.lng, item.name, item.desc, null, categories.city.color)
-                .addTo(layers.city);
+    /* ========== 行程数据索引 ========== */
+    function buildDayIndex(days) {
+        dayIndexMap.length = 0;
+        Object.keys(dayIndexMap).forEach(k => delete dayIndexMap[k]);
+        days.forEach((day, i) => {
+            const firstPt = day.points[0];
+            const lastPt = day.points[day.points.length - 1];
+            const label = `${firstPt.name} → ${lastPt.name}`;
+            day.points.forEach(p => {
+                dayIndexMap[p.name] = { day: day.name, label };
+            });
         });
-
-        scenics.forEach(item => {
-            createMarker(item.lat, item.lng, item.name, item.desc, null, categories.scenic.color)
-                .addTo(layers.scenic);
+        // 重建 dayIndexMap
+        days.forEach((day, i) => {
+            const firstPt = day.points[0];
+            const lastPt = day.points[day.points.length - 1];
+            const label = `${firstPt.name} → ${lastPt.name}`;
+            day.points.forEach(p => {
+                dayIndexMap[p.name] = { day: day.name, label };
+            });
         });
+    }
 
-        const routeCoords = routePoints.map(p => [p.lat, p.lng]);
-        L.polyline(routeCoords, {
-            color: categories.route.color, weight: 4, opacity: 0.7, dashArray: '10, 8'
-        }).addTo(layers.route);
+    /* ========== 统计 ========== */
+    function updateStats(days) {
+        const totalKm = days.reduce((s, d) => s + d.km, 0);
+        document.getElementById('statDistance').textContent = totalKm.toLocaleString();
+        document.getElementById('statDays').textContent = days.length;
+        document.getElementById('statSpots').textContent = saltLakes.length + scenics.length;
+        document.getElementById('statLakes').textContent = saltLakes.length;
+    }
 
-        const filterContainer = document.getElementById('filters');
-        Object.entries(categories).forEach(([key, cat]) => {
+    /* ========== 行程天数切换 ========== */
+    let currentDays = 7;
+    let currentDay = -1; // -1 表示显示全部
+
+    function applyDays(days, dayIdx = -1) {
+        currentDays = days;
+        currentDay = dayIdx;
+        const route = dayRoutes[days];
+        buildDayIndex(route);
+        drawDayRoutes(route, dayIdx);
+        updateStats(route);
+        renderDayList(route, dayIdx);
+        // 刷新已渲染标记的弹窗(用于显示 Day 信息)
+        allMarkers.forEach(m => m.closePopup());
+    }
+
+    function renderDayList(days, activeIdx) {
+        const list = document.getElementById('dayList');
+        list.innerHTML = '';
+        // "全部"选项
+        const allItem = document.createElement('div');
+        allItem.className = 'day-item' + (activeIdx === -1 ? ' active' : '');
+        allItem.innerHTML = `
+            <div class="day-badge" style="background:#6b7785;">∑</div>
+            <div class="day-info">
+                <div class="day-name">全部路线</div>
+                <div class="day-meta">${days.reduce((s,d)=>s+d.km,0)} km · ${days.length} 天</div>
+            </div>`;
+        allItem.addEventListener('click', () => {
+            applyDays(currentDays, -1);
+            map.flyToBounds(L.featureGroup(days.flatMap(d => d.points.map(p => L.marker([p.lat, p.lng])))).getBounds(), { padding: [40, 40] });
+        });
+        list.appendChild(allItem);
+
+        days.forEach((d, i) => {
             const div = document.createElement('div');
-            div.className = 'filter-item';
+            div.className = 'day-item' + (activeIdx === i ? ' active' : '');
+            div.style.borderLeftColor = routeColorPalette[i % routeColorPalette.length];
+            div.style.borderLeftWidth = '4px';
             div.innerHTML = `
-                <input type="checkbox" id="filter-${key}" checked>
-                <div class="legend-dot" style="background:${cat.color};"></div>
-                <span>${cat.name}</span>
-            `;
-            div.querySelector('input').addEventListener('change', e => {
-                if (e.target.checked) {
-                    map.addLayer(layers[key]);
-                } else {
-                    map.removeLayer(layers[key]);
-                }
+                <div class="day-badge" style="background:${routeColorPalette[i % routeColorPalette.length]};">${i+1}</div>
+                <div class="day-info">
+                    <div class="day-name">${d.name}</div>
+                    <div class="day-meta">${d.km} km · ${d.points.length} 站</div>
+                </div>`;
+            div.addEventListener('click', () => {
+                applyDays(currentDays, i);
+                const bounds = L.latLngBounds(d.points.map(p => [p.lat, p.lng]));
+                map.flyToBounds(bounds, { padding: [60, 60] });
             });
-            filterContainer.appendChild(div);
+            list.appendChild(div);
         });
+    }
+
+    /* ========== 行程天数段控件 ========== */
+    document.querySelectorAll('#daySeg button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#daySeg button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            applyDays(parseInt(btn.dataset.days), -1);
+        });
+    });
+
+    /* ========== 分类筛选 ========== */
+    const filterContainer = document.getElementById('filters');
+    Object.entries(categories).forEach(([key, cat]) => {
+        const div = document.createElement('div');
+        div.className = 'filter-item';
+        div.innerHTML = `
+            <input type="checkbox" id="filter-${key}" checked>
+            <div class="check"></div>
+            <div class="legend-dot" style="background:${cat.color};"></div>
+            <span>${cat.name}</span>
+            <span class="filter-count">${key === 'salt_lake' ? saltLakes.length : key === 'city' ? cities.length : key === 'scenic' ? scenics.length : ''}</span>`;
+        div.querySelector('input').addEventListener('change', e => {
+            if (e.target.checked) map.addLayer(layers[key]);
+            else map.removeLayer(layers[key]);
+        });
+        div.addEventListener('click', e => {
+            if (e.target.tagName !== 'INPUT') {
+                const cb = div.querySelector('input');
+                cb.checked = !cb.checked;
+                cb.dispatchEvent(new Event('change'));
+            }
+        });
+        filterContainer.appendChild(div);
+    });
+
+    /* ========== 搜索 ========== */
+    const searchInput = document.getElementById('searchInput');
+    const searchClear = document.getElementById('searchClear');
+
+    function performSearch(q) {
+        q = q.trim().toLowerCase();
+        searchClear.classList.toggle('visible', q.length > 0);
+        if (!q) {
+            allMarkers.forEach(m => m.setOpacity(1));
+            return;
+        }
+        allMarkers.forEach(m => {
+            const hit = m._data.name.toLowerCase().includes(q) ||
+                        (m._data.desc && m._data.desc.toLowerCase().includes(q));
+            m.setOpacity(hit ? 1 : 0.15);
+        });
+    }
+    searchInput.addEventListener('input', e => performSearch(e.target.value));
+    searchClear.addEventListener('click', () => {
+        searchInput.value = '';
+        performSearch('');
+        searchInput.focus();
+    });
+
+    /* ========== 移动端面板 ========== */
+    const panel = document.getElementById('panel');
+    const panelToggle = document.getElementById('panelToggle');
+    const panelClose = document.getElementById('panelClose');
+    panelToggle.addEventListener('click', () => panel.classList.add('open'));
+    panelClose.addEventListener('click', () => panel.classList.remove('open'));
+
+    /* ========== 初始 ========== */
+    applyDays(7, -1);
+
+    // 适应屏幕
+    setTimeout(() => map.invalidateSize(), 100);
+    window.addEventListener('resize', () => map.invalidateSize());
     </script>
 </body>
 </html>
