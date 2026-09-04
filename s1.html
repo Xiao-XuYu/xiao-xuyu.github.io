@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.0">
-    <meta name="description" content="青甘大环线 9 天 8 晚自驾地图:成都 → 兰州 → 张掖丹霞 → 大地之子 → 大柴旦翡翠湖 → G315 U型公路 → 水上雅丹 → 茶卡 → 青海湖石乃亥(2晚深度)→ 西宁 → 陇南 → 成都。">
-    <meta name="keywords" content="青甘大环线,9天8晚,青海甘肃自驾游,大地之子,翡翠湖,G315 U型公路,水上雅丹,茶卡盐湖,青海湖石乃亥,七彩丹霞">
+    <meta name="description" content="青甘大环线 9 天 8 晚自驾地图:成都 → 兰州 → 张掖丹霞 → 大柴旦翡翠湖 → G315 U型公路 → 水上雅丹 → 茶卡 → 青海湖石乃亥(2晚深度)→ 西宁 → 陇南 → 成都。">
+    <meta name="keywords" content="青甘大环线,9天8晚,青海甘肃自驾游,翡翠湖,G315 U型公路,水上雅丹,茶卡盐湖,青海湖石乃亥,七彩丹霞">
     <title>青甘大环线 9 天自驾地图 | 青海湖深度慢游版</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
           onerror="this.onerror=null;this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';" />
@@ -333,15 +333,7 @@
                 <button class="search-clear" id="searchClear">✕</button>
             </div>
 
-            <div class="section-title">行程天数</div>
-            <div class="seg" id="daySeg">
-                <button data-days="6">6 天</button>
-                <button data-days="7" class="active">7 天(经典)</button>
-                <button data-days="8">8 天</button>
-                <button data-days="9">9 天</button>
-            </div>
-
-            <div class="section-title">每日路线</div>
+            <div class="section-title">每日路线(9 天)</div>
             <div class="day-list" id="dayList"></div>
 
             <div class="section-title">分类筛选</div>
@@ -461,12 +453,6 @@
         { name:'张掖七彩丹霞', lat:38.93, lng:100.07, cat:'scenic',
           desc:'中国最美丹霞地貌之一,色彩斑斓如调色板。',
           ticket:'¥74 + 车¥20', best:'6-9月', tip:'Day2 下午 15:30 入园,观赏日落光影' },
-        { name:'大地之子', lat:40.55, lng:95.85, cat:'scenic',
-          desc:'瓜州戈壁上的网红雕塑,婴儿安睡于荒漠,出自清华美院董书兵。',
-          ticket:'免费', best:'5-10月', tip:'G30 路旁免费打卡点,停留 20 分钟即可' },
-        { name:'无界', lat:40.52, lng:95.88, cat:'scenic',
-          desc:'与大地之子同区域,长城意象装置艺术,戈壁中的诗意地标。',
-          ticket:'免费', best:'5-10月', tip:'与大地之子串联打卡,顺路不停留过夜' },
         { name:'G315 U型公路', lat:38.16, lng:93.55, cat:'scenic',
           desc:'中国 66 号公路,笔直天路陡然起伏,出片圣地。',
           ticket:'免费', best:'全年', tip:'严禁路中央停车拍照!路边安全区打卡' },
@@ -493,116 +479,8 @@
           ticket:'免费', best:'6-9月', tip:'芦苇荡中观鸟胜地' }
     ];
 
-    // 每日分段(以 9 天深度版为基准,6/7/8 天为压缩版)
+    // 每日分段:仅 9 天深度版
     const dayRoutes = {
-        6: [
-            { name:'D1 成都→兰州', km:960, points:[
-                { name:'成都', lat:30.57, lng:104.07 },
-                { name:'兰州', lat:36.06, lng:103.83 }
-            ]},
-            { name:'D2 兰州→张掖丹霞', km:500, points:[
-                { name:'兰州', lat:36.06, lng:103.83 },
-                { name:'张掖七彩丹霞', lat:38.93, lng:100.07 }
-            ]},
-            { name:'D3 张掖→大地之子→大柴旦', km:530, points:[
-                { name:'张掖', lat:38.93, lng:100.45 },
-                { name:'大地之子', lat:40.55, lng:95.85 },
-                { name:'无界', lat:40.52, lng:95.88 },
-                { name:'大柴旦', lat:37.85, lng:95.36 }
-            ]},
-            { name:'D4 大柴旦→水上雅丹→茶卡', km:420, points:[
-                { name:'大柴旦翡翠湖', lat:37.85, lng:95.36 },
-                { name:'G315 U型公路', lat:38.16, lng:93.55 },
-                { name:'水上雅丹', lat:38.05, lng:93.85 },
-                { name:'茶卡盐湖', lat:36.69, lng:99.10 }
-            ]},
-            { name:'D5 茶卡→青海湖→西宁', km:550, points:[
-                { name:'茶卡盐湖', lat:36.69, lng:99.10 },
-                { name:'青海湖·石乃亥', lat:36.95, lng:99.85 },
-                { name:'西宁', lat:36.62, lng:101.78 }
-            ]},
-            { name:'D6 西宁→陇南→成都', km:970, points:[
-                { name:'西宁', lat:36.62, lng:101.78 },
-                { name:'陇南', lat:33.40, lng:104.92 },
-                { name:'成都', lat:30.57, lng:104.07 }
-            ]}
-        ],
-        7: [
-            { name:'D1 成都→兰州', km:960, points:[
-                { name:'成都', lat:30.57, lng:104.07 },
-                { name:'兰州', lat:36.06, lng:103.83 }
-            ]},
-            { name:'D2 兰州→张掖丹霞', km:500, points:[
-                { name:'兰州', lat:36.06, lng:103.83 },
-                { name:'张掖七彩丹霞', lat:38.93, lng:100.07 }
-            ]},
-            { name:'D3 张掖→大地之子→大柴旦', km:530, points:[
-                { name:'张掖', lat:38.93, lng:100.45 },
-                { name:'大地之子', lat:40.55, lng:95.85 },
-                { name:'无界', lat:40.52, lng:95.88 },
-                { name:'大柴旦', lat:37.85, lng:95.36 }
-            ]},
-            { name:'D4 大柴旦→水上雅丹→茶卡', km:420, points:[
-                { name:'大柴旦翡翠湖', lat:37.85, lng:95.36 },
-                { name:'G315 U型公路', lat:38.16, lng:93.55 },
-                { name:'水上雅丹', lat:38.05, lng:93.85 },
-                { name:'茶卡盐湖', lat:36.69, lng:99.10 }
-            ]},
-            { name:'D5 茶卡→青海湖(石乃亥)', km:210, points:[
-                { name:'茶卡盐湖', lat:36.69, lng:99.10 },
-                { name:'青海湖·石乃亥', lat:36.95, lng:99.85 }
-            ]},
-            { name:'D6 青海湖→西宁', km:340, points:[
-                { name:'青海湖·石乃亥', lat:36.95, lng:99.85 },
-                { name:'青海湖日出点', lat:36.92, lng:99.80 },
-                { name:'西宁', lat:36.62, lng:101.78 }
-            ]},
-            { name:'D7 西宁→陇南→成都', km:970, points:[
-                { name:'西宁', lat:36.62, lng:101.78 },
-                { name:'陇南', lat:33.40, lng:104.92 },
-                { name:'成都', lat:30.57, lng:104.07 }
-            ]}
-        ],
-        8: [
-            { name:'D1 成都→兰州', km:960, points:[
-                { name:'成都', lat:30.57, lng:104.07 },
-                { name:'兰州', lat:36.06, lng:103.83 }
-            ]},
-            { name:'D2 兰州→张掖丹霞', km:500, points:[
-                { name:'兰州', lat:36.06, lng:103.83 },
-                { name:'张掖七彩丹霞', lat:38.93, lng:100.07 }
-            ]},
-            { name:'D3 张掖→大地之子→大柴旦', km:530, points:[
-                { name:'张掖', lat:38.93, lng:100.45 },
-                { name:'大地之子', lat:40.55, lng:95.85 },
-                { name:'无界', lat:40.52, lng:95.88 },
-                { name:'大柴旦', lat:37.85, lng:95.36 }
-            ]},
-            { name:'D4 大柴旦→水上雅丹→茶卡', km:420, points:[
-                { name:'大柴旦翡翠湖', lat:37.85, lng:95.36 },
-                { name:'G315 U型公路', lat:38.16, lng:93.55 },
-                { name:'水上雅丹', lat:38.05, lng:93.85 },
-                { name:'茶卡盐湖', lat:36.69, lng:99.10 }
-            ]},
-            { name:'D5 茶卡→青海湖(石乃亥)', km:210, points:[
-                { name:'茶卡盐湖', lat:36.69, lng:99.10 },
-                { name:'青海湖·石乃亥', lat:36.95, lng:99.85 }
-            ]},
-            { name:'D6 青海湖全天慢玩', km:120, points:[
-                { name:'青海湖·石乃亥', lat:36.95, lng:99.85 },
-                { name:'青海湖日出点', lat:36.92, lng:99.80 },
-                { name:'青海湖·石乃亥', lat:36.95, lng:99.85 }
-            ]},
-            { name:'D7 青海湖→西宁', km:340, points:[
-                { name:'青海湖·石乃亥', lat:36.95, lng:99.85 },
-                { name:'西宁', lat:36.62, lng:101.78 }
-            ]},
-            { name:'D8 西宁→陇南→成都', km:970, points:[
-                { name:'西宁', lat:36.62, lng:101.78 },
-                { name:'陇南', lat:33.40, lng:104.92 },
-                { name:'成都', lat:30.57, lng:104.07 }
-            ]}
-        ],
         9: [
             { name:'D1 成都→兰州(过夜)', km:960, points:[
                 { name:'成都', lat:30.57, lng:104.07 },
@@ -612,10 +490,8 @@
                 { name:'兰州', lat:36.06, lng:103.83 },
                 { name:'张掖七彩丹霞', lat:38.93, lng:100.07 }
             ]},
-            { name:'D3 张掖→大地之子→大柴旦', km:530, points:[
+            { name:'D3 张掖→大柴旦', km:530, points:[
                 { name:'张掖', lat:38.93, lng:100.45 },
-                { name:'大地之子', lat:40.55, lng:95.85 },
-                { name:'无界', lat:40.52, lng:95.88 },
                 { name:'大柴旦', lat:37.85, lng:95.36 }
             ]},
             { name:'D4 翡翠湖→U型公路→水上雅丹→茶卡', km:420, points:[
@@ -803,19 +679,16 @@
         document.getElementById('statLakes').textContent = saltLakes.length;
     }
 
-    /* ========== 行程天数切换 ========== */
-    let currentDays = 7;
+    /* ========== 行程渲染(固定 9 天) ========== */
     let currentDay = -1; // -1 表示显示全部
 
-    function applyDays(days, dayIdx = -1) {
-        currentDays = days;
+    function applyDays(dayIdx = -1) {
         currentDay = dayIdx;
-        const route = dayRoutes[days];
+        const route = dayRoutes[9];
         buildDayIndex(route);
         drawDayRoutes(route, dayIdx);
         updateStats(route);
         renderDayList(route, dayIdx);
-        // 刷新已渲染标记的弹窗(用于显示 Day 信息)
         allMarkers.forEach(m => m.closePopup());
     }
 
@@ -832,7 +705,7 @@
                 <div class="day-meta">${days.reduce((s,d)=>s+d.km,0)} km · ${days.length} 天</div>
             </div>`;
         allItem.addEventListener('click', () => {
-            applyDays(currentDays, -1);
+            applyDays(-1);
             map.flyToBounds(L.featureGroup(days.flatMap(d => d.points.map(p => L.marker([p.lat, p.lng])))).getBounds(), { padding: [40, 40] });
         });
         list.appendChild(allItem);
@@ -849,22 +722,13 @@
                     <div class="day-meta">${d.km} km · ${d.points.length} 站</div>
                 </div>`;
             div.addEventListener('click', () => {
-                applyDays(currentDays, i);
+                applyDays(i);
                 const bounds = L.latLngBounds(d.points.map(p => [p.lat, p.lng]));
                 map.flyToBounds(bounds, { padding: [60, 60] });
             });
             list.appendChild(div);
         });
     }
-
-    /* ========== 行程天数段控件 ========== */
-    document.querySelectorAll('#daySeg button').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#daySeg button').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            applyDays(parseInt(btn.dataset.days), -1);
-        });
-    });
 
     /* ========== 分类筛选 ========== */
     const filterContainer = document.getElementById('filters');
@@ -954,7 +818,7 @@
     });
 
     /* ========== 初始 ========== */
-    applyDays(7, -1);
+    applyDays(-1);
 
     // 适应屏幕:多次重算,解决移动端首次渲染白屏
     function refreshMap() { map.invalidateSize(); }
