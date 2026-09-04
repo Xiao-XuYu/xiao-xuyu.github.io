@@ -6,7 +6,8 @@
     <meta name="description" content="青甘大环线自驾旅游互动地图,汇集盐湖、丹霞、雅丹、莫高窟等核心景点与环线路线,支持分类筛选、行程天数切换与景点详情查看。">
     <meta name="keywords" content="青甘大环线,青海甘肃旅游,自驾游,盐湖,茶卡盐湖,翡翠湖,莫高窟,七彩丹霞,雅丹,环线路线">
     <title>青甘大环线自驾地图 | 盐湖·丹霞·莫高窟景点导航</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+          onerror="this.onerror=null;this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';" />
     <style>
         :root {
             --bg: #f7f8fa;
@@ -27,7 +28,7 @@
             background: var(--bg);
             overflow: hidden;
         }
-        #map { width: 100%; height: 100vh; }
+        #map { width: 100%; height: 100vh; min-height: 300px; }
 
         /* ====== 侧边面板 ====== */
         .panel {
@@ -164,19 +165,24 @@
         /* ====== 移动端折叠按钮 ====== */
         .panel-toggle {
             display: none;
-            position: absolute; top: 12px; right: 12px;
-            z-index: 1100; background: var(--card);
+            position: fixed; top: 12px; right: 12px;
+            z-index: 1200; background: var(--card);
             border: none; border-radius: 50%;
             width: 44px; height: 44px;
             box-shadow: var(--shadow); cursor: pointer;
-            font-size: 18px; color: var(--text);
+            font-size: 20px; color: var(--text);
+            align-items: center; justify-content: center;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
         .panel-close {
             display: none;
             position: absolute; top: 10px; right: 10px;
             z-index: 1001; background: transparent;
-            border: none; font-size: 20px; cursor: pointer;
-            color: var(--muted); padding: 4px;
+            border: none; font-size: 22px; cursor: pointer;
+            color: var(--muted); padding: 6px 10px;
+            -webkit-tap-highlight-color: transparent;
+            line-height: 1;
         }
 
         /* ====== 图例标记 ====== */
@@ -265,11 +271,20 @@
                 width: 86%; max-width: 340px; height: 100vh;
                 max-height: 100vh; border-radius: 0;
                 transition: right .25s ease-out;
+                box-shadow: -4px 0 20px rgba(0,0,0,.15);
             }
             .panel.open { right: 0; }
-            .panel-toggle { display: flex; align-items: center; justify-content: center; }
+            .panel-toggle { display: flex; }
+            body.panel-open .panel-toggle { display: none; }
             .panel-close { display: block; }
             .leaflet-popup-content { width: 220px !important; }
+            /* 抽屉打开时的遮罩 */
+            .panel-backdrop {
+                position: fixed; inset: 0; background: rgba(0,0,0,.35);
+                z-index: 999; opacity: 0; pointer-events: none;
+                transition: opacity .25s;
+            }
+            .panel-backdrop.show { opacity: 1; pointer-events: auto; }
         }
 
         /* ====== 滚动条 ====== */
@@ -300,7 +315,9 @@
         <div class="stat"><div class="stat-val" id="statLakes">0</div><div class="stat-label">盐湖</div></div>
     </div>
 
-    <button class="panel-toggle" id="panelToggle" title="菜单">☰</button>
+    <button class="panel-toggle" id="panelToggle" aria-label="菜单" title="菜单">☰</button>
+
+    <div class="panel-backdrop" id="panelBackdrop"></div>
 
     <aside class="panel" id="panel">
         <button class="panel-close" id="panelClose" title="关闭">✕</button>
@@ -337,7 +354,8 @@
         </div>
     </aside>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+            onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';document.head.appendChild(s);"></script>
     <script>
     /* ========== 数据 ========== */
     const categories = {
@@ -630,11 +648,34 @@
     const dayIndexMap = {};
 
     /* ========== 地图初始化 ========== */
-    const map = L.map('map', { zoomControl: false }).setView([37.5, 95.5], 6);
+    const map = L.map('map', {
+        zoomControl: false,
+        // 移动端禁用部分手势,避免误触
+        tap: true,
+        fadeAnimation: false,
+        zoomAnimation: true
+    }).setView([37.5, 95.5], 6);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap', maxZoom: 18
-    }).addTo(map);
+
+    // 瓦片源:国内优先高德,失败回退 OSM
+    const tileLayers = [
+        L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+            subdomains: ['1','2','3','4'],
+            attribution: '© 高德地图',
+            maxZoom: 18,
+            detectRetina: false
+        }),
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            maxZoom: 18
+        })
+    ];
+    tileLayers[0].addTo(map);
+    tileLayers[0].on('tileerror', () => {
+        // 高德瓦片失败时切到 OSM
+        try { map.removeLayer(tileLayers[0]); } catch(e) {}
+        try { tileLayers[1].addTo(map); } catch(e) {}
+    });
 
     const layers = {};
     Object.keys(categories).forEach(k => layers[k] = L.layerGroup().addTo(map));
@@ -874,15 +915,50 @@
     const panel = document.getElementById('panel');
     const panelToggle = document.getElementById('panelToggle');
     const panelClose = document.getElementById('panelClose');
-    panelToggle.addEventListener('click', () => panel.classList.add('open'));
-    panelClose.addEventListener('click', () => panel.classList.remove('open'));
+    const panelBackdrop = document.getElementById('panelBackdrop');
+
+    function isMobile() { return window.matchMedia('(max-width: 768px)').matches; }
+    function openPanel() {
+        panel.classList.add('open');
+        if (isMobile()) {
+            panelBackdrop.classList.add('show');
+            document.body.classList.add('panel-open');
+        }
+        setTimeout(() => map.invalidateSize(), 280);
+    }
+    function closePanel() {
+        panel.classList.remove('open');
+        panelBackdrop.classList.remove('show');
+        document.body.classList.remove('panel-open');
+        setTimeout(() => map.invalidateSize(), 280);
+    }
+    function togglePanel() {
+        if (panel.classList.contains('open')) closePanel();
+        else openPanel();
+    }
+
+    panelToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        togglePanel();
+    });
+    panelClose.addEventListener('click', closePanel);
+    panelBackdrop.addEventListener('click', closePanel);
+    // Esc 关闭
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && panel.classList.contains('open')) closePanel();
+    });
 
     /* ========== 初始 ========== */
     applyDays(7, -1);
 
-    // 适应屏幕
-    setTimeout(() => map.invalidateSize(), 100);
-    window.addEventListener('resize', () => map.invalidateSize());
+    // 适应屏幕:多次重算,解决移动端首次渲染白屏
+    function refreshMap() { map.invalidateSize(); }
+    setTimeout(refreshMap, 50);
+    setTimeout(refreshMap, 300);
+    setTimeout(refreshMap, 800);
+    window.addEventListener('resize', refreshMap);
+    window.addEventListener('orientationchange', () => setTimeout(refreshMap, 200));
     </script>
 </body>
 </html>
