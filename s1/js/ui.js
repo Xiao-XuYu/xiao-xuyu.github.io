@@ -202,10 +202,13 @@ const UI = (function () {
     /* ---------- 高德 Key 配置面板 ---------- */
     function initAmapKeyPanel() {
         const input = document.getElementById('amapKeyInput');
+        const jscodeInput = document.getElementById('amapJscodeInput');
         const saveBtn = document.getElementById('amapKeySave');
         const clearBtn = document.getElementById('amapKeyClear');
         const maskToggle = document.getElementById('amapKeyMask');
+        const jscodeMaskToggle = document.getElementById('amapJscodeMask');
         const lsKey = window.CONFIG.LS_KEY_NAME;
+        const lsJscode = window.CONFIG.LS_JSCODE_NAME;
 
         // 载入已保存的 Key(只显示前 4 后 4 中间 ****)
         const saved = localStorage.getItem(lsKey);
@@ -216,9 +219,20 @@ const UI = (function () {
             clearBtn.style.display = '';
         }
 
+        // 载入已保存的 jscode
+        const savedJscode = localStorage.getItem(lsJscode);
+        if (savedJscode) {
+            window.CONFIG.AMAP_SECURITY_JSCODE = savedJscode;
+            jscodeInput.value = maskKey(savedJscode);
+            jscodeInput.placeholder = '已保存 jscode · 点击可修改';
+        }
+
         // 输入框聚焦时清空,允许输入完整 Key
         input.addEventListener('focus', () => {
             if (input.value.includes('*')) input.value = '';
+        });
+        jscodeInput.addEventListener('focus', () => {
+            if (jscodeInput.value.includes('*')) jscodeInput.value = '';
         });
 
         // 保存
@@ -236,22 +250,39 @@ const UI = (function () {
             window.CONFIG.AMAP_KEY = v;
             input.value = maskKey(v);
             input.blur();
+
+            // 同时保存 jscode(可空)
+            const jsv = jscodeInput.value.trim();
+            if (jsv) {
+                localStorage.setItem(lsJscode, jsv);
+                window.CONFIG.AMAP_SECURITY_JSCODE = jsv;
+                jscodeInput.value = maskKey(jsv);
+                jscodeInput.blur();
+            }
+
             clearBtn.style.display = '';
+            // 清缓存让 amap-route 用新 Key 重新请求
+            if (window.AmapRoute && AmapRoute.clearAll) AmapRoute.clearAll();
             refreshAmapAvailability();
-            setAmapStatus('✅ Key 已保存,可点击上方开关启用驾车路径', 'ok');
+            const jscodeHint = jsv ? '(已含 jscode)' : '(无 jscode,如仍失败请补填)';
+            setAmapStatus('✅ 已保存 ' + jscodeHint + ',可点开关启用驾车路径', 'ok');
         });
 
         // 清空
         clearBtn.addEventListener('click', () => {
-            if (!confirm('确定要清除已保存的高德 API Key?')) return;
+            if (!confirm('确定要清除已保存的 Key 和安全密钥?')) return;
             localStorage.removeItem(lsKey);
+            localStorage.removeItem(lsJscode);
             window.CONFIG.AMAP_KEY = '';
+            window.CONFIG.AMAP_SECURITY_JSCODE = '';
             input.value = '';
             input.placeholder = '粘贴从高德开放平台申请的 Web 端 Key';
+            jscodeInput.value = '';
+            jscodeInput.placeholder = '仅当 Key 启用了安全密钥时才需要填写';
             clearBtn.style.display = 'none';
             AmapRoute.clearOverlayOnly();
             refreshAmapAvailability();
-            setAmapStatus('已清除 Key', 'err');
+            setAmapStatus('已清除 Key 与 jscode', 'err');
         });
 
         // 显隐切换
@@ -259,7 +290,6 @@ const UI = (function () {
             if (input.type === 'password') {
                 input.type = 'text';
                 maskToggle.textContent = '🙈';
-                // 显隐状态下都展示掩码
                 if (window.CONFIG.AMAP_KEY) input.value = maskKey(window.CONFIG.AMAP_KEY);
             } else {
                 input.type = 'password';
@@ -267,6 +297,19 @@ const UI = (function () {
                 if (window.CONFIG.AMAP_KEY) input.value = maskKey(window.CONFIG.AMAP_KEY);
             }
         });
+        if (jscodeMaskToggle) {
+            jscodeMaskToggle.addEventListener('click', () => {
+                if (jscodeInput.type === 'password') {
+                    jscodeInput.type = 'text';
+                    jscodeMaskToggle.textContent = '🙈';
+                    if (window.CONFIG.AMAP_SECURITY_JSCODE) jscodeInput.value = maskKey(window.CONFIG.AMAP_SECURITY_JSCODE);
+                } else {
+                    jscodeInput.type = 'password';
+                    jscodeMaskToggle.textContent = '👁';
+                    if (window.CONFIG.AMAP_SECURITY_JSCODE) jscodeInput.value = maskKey(window.CONFIG.AMAP_SECURITY_JSCODE);
+                }
+            });
+        }
 
         // 测试 Key
         const testBtn = document.getElementById('amapKeyTest');

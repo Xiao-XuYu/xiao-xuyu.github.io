@@ -83,17 +83,27 @@
                            autocomplete="off" spellcheck="false">
                     <button class="key-icon-btn" id="amapKeyMask" title="显隐">👁</button>
                 </div>
+
+                <div class="key-label" style="margin-top:10px;">🛡 安全密钥(可选)</div>
+                <div class="key-input-wrap">
+                    <input type="password" id="amapJscodeInput"
+                           placeholder="仅当 Key 启用了安全密钥时才需要填写"
+                           autocomplete="off" spellcheck="false">
+                    <button class="key-icon-btn" id="amapJscodeMask" title="显隐">👁</button>
+                </div>
+
                 <div class="key-actions">
                     <button class="key-btn primary" id="amapKeySave">保存</button>
                     <button class="key-btn" id="amapKeyTest">测试</button>
                     <button class="key-btn" id="amapKeyClear" style="display:none;">清除</button>
                 </div>
                 <div class="key-hint">
-                    Key 仅保存在浏览器 localStorage,不上传服务器。<br>
+                    Key 与安全密钥仅保存在浏览器 localStorage,不上传服务器。<br>
                     ⚠️ <b>驾车路径失败的常见原因</b>:<br>
                     ① 高德控制台 <b>没勾选「Web 服务」</b>(只在「Web 端 JS API」下)<br>
                     ② 没加 <b>域名白名单 xiao-xuyu.github.io</b><br>
-                    ③ IP 白名单限制(浏览器访问 IP 不在白名单内)
+                    ③ IP 白名单限制(浏览器访问 IP 不在白名单内)<br>
+                    ④ 创建 Key 时勾选了「安全密钥」但此处没填(jscode 仅用于本地签名场景)
                 </div>
             </div>
 
