@@ -133,15 +133,37 @@ const AmapRoute = (function () {
         const c = color || '#1e88e5';
         for (let i = 0; i < day.points.length - 1; i++) {
             const a = day.points[i], b = day.points[i + 1];
-            try {
-                const seg = await getSegment(a, b);
-                segs.push(seg);
-            } catch (err) {
-                if (err.name === 'AbortError') return;
-                if (errSink && errSink.length < 3) {
-                    errSink.push(a.name + '→' + b.name + ': ' + err.message);
+            // QPS 限流防护:每段请求间隔 400ms(新手 Key QPS=3,留够余地)
+            if (i > 0) await sleep(400);
+            let lastErr = null;
+            // 单段最多重试 3 次,指数退避
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const seg = await getSegment(a, b);
+                    segs.push(seg);
+                    lastErr = null;
+                    break;
+                } catch (err) {
+                    lastErr = err;
+                    if (err.name === 'AbortError') return;
+                    // 限流类错误(10021/10029):等更久再重试
+                    if (/10021|10029|CUQPS/i.test(err.message)) {
+                        await sleep(800 * (attempt + 1));
+                        continue;
+                    }
+                    // 其他错误:简单重试一次
+                    if (attempt < 1) {
+                        await sleep(200);
+                        continue;
+                    }
+                    break;
                 }
-                console.warn('[AmapRoute]', a.name, '→', b.name, err.message);
+            }
+            if (lastErr) {
+                if (errSink && errSink.length < 3) {
+                    errSink.push(a.name + '→' + b.name + ': ' + lastErr.message);
+                }
+                console.warn('[AmapRoute]', a.name, '→', b.name, lastErr.message);
             }
         }
         const merged = [].concat(...segs.map(s => s.coords));
@@ -166,7 +188,8 @@ const AmapRoute = (function () {
         abortPending();
         const palette = ['#f39c12','#e74c3c','#9b59b6','#3498db','#1abc9c','#27ae60','#e67e22','#34495e','#16a085'];
         const errors = [];
-        setStatus('⏳ 正在请求高德驾车路径(共 ' + days.length + ' 段,可能需 5-15 秒)…', 'ok');
+        const total = days.reduce((s, d) => s + Math.max(0, d.points.length - 1), 0);
+        setStatus('⏳ 正在请求高德驾车路径(共 ' + total + ' 段,新手 Key QPS 有限,约需 ' + Math.ceil(total * 0.5) + ' 秒)…', 'ok');
         for (let i = 0; i < days.length; i++) {
             await drawDay(days[i], palette[i % palette.length], errors);
         }
@@ -175,12 +198,15 @@ const AmapRoute = (function () {
         if (fail === 0) {
             setStatus('✅ 高德真实路径已叠加(' + okCount + ' 段)', 'ok');
         } else {
-            // 诊断:9 段全失败几乎都是 Key 未授权 Web 服务 或域名白名单
             const sample = errors.length ? errors.slice(0, 3).join(' | ') : '见 console';
             const isAllFail = fail === days.length;
-            const hint = isAllFail
-                ? ' · 请确认:①高德控制台已勾选「Web 服务」 ②已加上域名白名单 xiao-xuyu.github.io'
-                : '';
+            const isQps = errors.some(e => /10021|10029|CUQPS/i.test(e));
+            let hint = '';
+            if (isAllFail) {
+                hint = ' · 请确认:①高德控制台已勾选「Web 服务」 ②已加域名白名单 xiao-xuyu.github.io';
+            } else if (isQps) {
+                hint = ' · 高德 QPS 限流(等几秒后再点开关重试,或在控制台申请更高 QPS)';
+            }
             setStatus('⚠️ 失败 ' + fail + '/' + days.length + ' · ' + sample + hint, 'err');
         }
     }
@@ -199,6 +225,8 @@ const AmapRoute = (function () {
         if (overlayLayer) overlayLayer.clearLayers();
         dayPolylines.length = 0;
     }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
     async function testKey(key) {
         key = (key || window.CONFIG.AMAP_KEY || '').trim();
