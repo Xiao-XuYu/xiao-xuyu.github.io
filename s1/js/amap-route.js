@@ -14,7 +14,12 @@ const AmapRoute = (function () {
         const map = MapManager.getMap();
         if (!map) return null;
         if (!overlayLayer) {
-            overlayLayer = L.layerGroup();
+            // 自建 pane 让驾车实线浮在 marker 之上,不被 tooltip 遮挡
+            if (!map.getPane('amapPane')) {
+                map.createPane('amapPane');
+                map.getPane('amapPane').style.zIndex = 650;   // 在 markerPane(600) 之上
+            }
+            overlayLayer = L.layerGroup({ pane: 'amapPane' });
             overlayLayer.addTo(map);
         }
         return overlayLayer;
@@ -97,8 +102,14 @@ const AmapRoute = (function () {
         }
         const path = json.route && json.route.paths && json.route.paths[0];
         if (!path) throw new Error('未返回路径');
+        // 高德 extensions=base 时 polyline 在 paths[0] 顶层,长路径也可能为空需要从 steps 拼接
+        let polyStr = path.polyline || '';
+        if (!polyStr && path.steps && path.steps.length) {
+            polyStr = path.steps.map(s => s.polyline).filter(Boolean).join(';');
+        }
+        if (!polyStr) throw new Error('paths[0].polyline 与 steps.polyline 均为空');
         return {
-            coords: decodePolyline(path.polyline),
+            coords: decodePolyline(polyStr),
             distance: parseInt(path.distance, 10),
             duration: parseInt(path.duration, 10)
         };
@@ -173,7 +184,9 @@ const AmapRoute = (function () {
             const layer = ensureLayer();
             if (!layer) return;
             const poly = L.polyline(merged.map(p => [p[1], p[0]]), {
-                color: c, weight: 5, opacity: 0.9
+                color: c, weight: 6, opacity: 1,
+                pane: 'amapPane',
+                lineCap: 'round', lineJoin: 'round'
             }).addTo(layer);
             const km = (totalDist / 1000).toFixed(0);
             const hr = (totalDur / 3600).toFixed(1);
@@ -273,7 +286,7 @@ const AmapRoute = (function () {
 
     return {
         setEnabled, isEnabled,
-        drawAll, drawOnlyDay, clearAll, clearOverlayOnly,
+        drawAll, drawDay, drawOnlyDay, clearAll, clearOverlayOnly,
         testKey, ensureLayer
     };
 })();

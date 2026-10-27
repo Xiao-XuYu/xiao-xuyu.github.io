@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="高德驾车路径规划 API 测试页">
+    <title>高德驾车路线测试</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+          onerror="this.onerror=null;this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+        }
+        #jsErrorBar {
+            display: none; position: fixed; top: 0; left: 0; right: 0;
+            z-index: 99999; background: #b14444; color: #fff;
+            padding: 8px 14px; font-size: 12px; line-height: 1.5;
+            font-family: ui-monospace, monospace; word-break: break-all;
+        }
+        .app {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            grid-template-rows: 56px 1fr;
+            grid-template-areas:
+                "header header"
+                "panel  map";
+            height: 100vh;
+        }
+        .header {
+            grid-area: header;
+            background: linear-gradient(135deg, #1e88e5, #1565c0);
+            color: #fff;
+            display: flex; align-items: center;
+            padding: 0 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.15);
+            z-index: 1000;
+        }
+        .header h1 {
+            font-size: 16px; font-weight: 600; margin: 0;
+        }
+        .header .badge {
+            margin-left: 12px; padding: 2px 8px;
+            background: rgba(255,255,255,.2); border-radius: 10px;
+            font-size: 11px;
+        }
+        .panel {
+            grid-area: panel;
+            background: #fff;
+            border-right: 1px solid #e0e6ed;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        #map {
+            grid-area: map;
+            height: 100%;
+            width: 100%;
+        }
+        .section {
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px dashed #e0e6ed;
+        }
+        .section:last-child { border-bottom: none; }
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1e88e5;
+            margin-bottom: 10px;
+            display: flex; align-items: center;
+        }
+        .section-title::before {
+            content: ''; display: inline-block;
+            width: 3px; height: 13px;
+            background: #1e88e5; margin-right: 6px;
+            border-radius: 2px;
+        }
+        label {
+            display: block;
+            font-size: 12px;
+            color: #6c7a89;
+            margin-bottom: 4px;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #d6dde4;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            transition: border-color .2s;
+        }
+        input:focus, select:focus { border-color: #1e88e5; }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        button {
+            padding: 8px 14px;
+            border: none; border-radius: 6px;
+            font-size: 13px; cursor: pointer;
+            transition: all .15s;
+            background: #f0f4f8; color: #2c3e50;
+        }
+        button:hover { background: #e3eaf2; }
+        button.primary { background: #1e88e5; color: #fff; }
+        button.primary:hover { background: #1565c0; }
+        button.danger { background: #e74c3c; color: #fff; }
+        button.danger:hover { background: #c0392b; }
+        .btn-group { display: flex; gap: 8px; margin-top: 8px; }
+        .btn-group button { flex: 1; }
+        .preset-list {
+            display: flex; flex-wrap: wrap; gap: 6px;
+        }
+        .preset-list button {
+            font-size: 12px; padding: 5px 10px;
+            background: #eaf3fc; color: #1e88e5;
+        }
+        .preset-list button:hover { background: #d0e6f9; }
+        .status {
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.6;
+            margin-top: 8px;
+            word-break: break-all;
+        }
+        .status.ok { background: #e8f5e9; color: #2e7d32; border-left: 3px solid #4caf50; }
+        .status.err { background: #ffebee; color: #c62828; border-left: 3px solid #e53935; }
+        .status.info { background: #e3f2fd; color: #1565c0; border-left: 3px solid #1e88e5; }
+        .log {
+            margin-top: 10px;
+            background: #1e272e;
+            color: #dce4eb;
+            border-radius: 6px;
+            padding: 10px;
+            font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            max-height: 220px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .log .ts { color: #7f8fa6; }
+        .log .ok { color: #4cd137; }
+        .log .err { color: #ff6b6b; }
+        .log .info { color: #60a3bc; }
+        .stat-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .stat-card {
+            background: #f8fafc;
+            border: 1px solid #e0e6ed;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+        }
+        .stat-card .v { font-size: 18px; font-weight: 700; color: #1e88e5; }
+        .stat-card .l { font-size: 11px; color: #6c7a89; margin-top: 2px; }
+        .hint {
+            font-size: 11px; color: #95a5a6;
+            line-height: 1.6; margin-top: 6px;
+        }
+        .route-segment {
+            background: #f8fafc;
+            border: 1px solid #e0e6ed;
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            display: flex; align-items: center;
+            gap: 8px;
+        }
+        .route-segment .num {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: #1e88e5; color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 600;
+            flex-shrink: 0;
+        }
+        .route-segment .info { flex: 1; font-size: 12px; }
+        .route-segment .info b { color: #2c3e50; }
+        .route-segment .info span { color: #95a5a6; font-size: 11px; }
+        .route-segment .actions { display: flex; gap: 4px; }
+        .route-segment .actions button { padding: 4px 8px; font-size: 11px; }
+        @media (max-width: 768px) {
+            .app {
+                grid-template-columns: 1fr;
+                grid-template-rows: 56px 1fr 320px;
+                grid-template-areas: "header" "map" "panel";
+            }
+            .panel { border-right: none; border-top: 1px solid #e0e6ed; }
+        }
+    </style>
+    <script>
+        window.addEventListener('error', e => {
+            const bar = document.getElementById('jsErrorBar');
+            if (!bar) return;
+            bar.style.display = 'block';
+            const stack = (e.error && e.error.stack) ? '\n' + e.error.stack.slice(0, 600) : '';
+            bar.textContent = '❌ JS 错误:' + (e.message || e.error) +
+                              (e.filename ? ' · ' + e.filename.split('/').pop() : '') +
+                              (e.lineno ? ':' + e.lineno : '') + stack;
+        });
+    </script>
+</head>
+<body>
+    <div id="jsErrorBar"></div>
+    <div class="app">
+        <div class="header">
+            <h1>🚗 高德驾车路径 API 测试</h1>
+            <span class="badge">REST · /v3/direction/driving</span>
+        </div>
+
+        <aside class="panel">
+            <!-- API Key -->
+            <div class="section">
+                <div class="section-title">① 高德 API Key</div>
+                <label>Key(32 位,Web 端 JS API + Web 服务)</label>
+                <input type="password" id="amapKey" placeholder="粘贴 Key,自动保存到 localStorage">
+                <div class="btn-group">
+                    <button id="btnTestKey" class="primary">测试 Key</button>
+                    <button id="btnClearKey">清除</button>
+                </div>
+                <div id="keyStatus" class="status info">请先填入 Key 并点击「测试」</div>
+                <div class="hint">
+                    申请:<a href="https://lbs.amap.com/dev/key/app" target="_blank" style="color:#1e88e5;">lbs.amap.com</a><br>
+                    ⚠️ 必须勾选「Web 服务」平台,否则 direction 接口返回 10009
+                </div>
+            </div>
+
+            <!-- 路径段 -->
+            <div class="section">
+                <div class="section-title">② 起终点坐标</div>
+                <div class="row">
+                    <div>
+                        <label>起点 经度</label>
+                        <input id="oLng" type="number" step="0.000001" value="116.397">
+                    </div>
+                    <div>
+                        <label>起点 纬度</label>
+                        <input id="oLat" type="number" step="0.000001" value="39.908">
+                    </div>
+                </div>
+                <div class="row" style="margin-top:6px;">
+                    <div>
+                        <label>终点 经度</label>
+                        <input id="dLng" type="number" step="0.000001" value="116.508">
+                    </div>
+                    <div>
+                        <label>终点 纬度</label>
+                        <input id="dLat" type="number" step="0.000001" value="39.919">
+                    </div>
+                </div>
+                <label style="margin-top:8px;">路线策略</label>
+                <select id="strategy">
+                    <option value="0">0 · 推荐 / 最快</option>
+                    <option value="1">1 · 最省钱(不走高速)</option>
+                    <option value="2">2 · 最短距离</option>
+                    <option value="3">3 · 避开拥堵</option>
+                    <option value="4">4 · 多策略综合</option>
+                </select>
+                <div class="btn-group">
+                    <button id="btnAddSeg" class="primary">➕ 添加到路线</button>
+                    <button id="btnClearSeg">清空路线</button>
+                </div>
+                <div class="btn-group">
+                    <button id="btnBatchDraw" style="background:#27ae60;color:#fff;">🚀 批量绘制所有段</button>
+                    <button id="btnShowAll">👁 显示全部</button>
+                </div>
+                <div class="btn-group">
+                    <button id="btnRaw" style="background:#ff9800;color:#fff;">🧪 原始请求(看返回)</button>
+                    <button id="btnDiag" style="background:#9b59b6;color:#fff;">🔍 网络诊断</button>
+                </div>
+
+                <label style="margin-top:10px;">快速预设</label>
+                <div class="preset-list">
+                    <button data-preset="bjtiananmen">北京·天安门→王府井</button>
+                    <button data-preset="shanghai">上海·外滩→迪士尼</button>
+                    <button data-preset="chengdu">成都·春熙路→都江堰</button>
+                    <button data-preset="qinghai-d1">青甘 D1·成都→兰州</button>
+                    <button data-preset="qinghai-d2">青甘 D2·兰州→张掖</button>
+                    <button data-preset="qinghai-d5">青甘 D5·大柴旦→格尔木</button>
+                </div>
+            </div>
+
+            <!-- 路线管理 -->
+            <div class="section">
+                <div class="section-title">③ 路线段管理</div>
+                <div id="segList"></div>
+                <div id="routeStats" class="stat-grid" style="margin-top:8px;display:none;">
+                    <div class="stat-card"><div class="v" id="totalKm">0</div><div class="l">总距离(km)</div></div>
+                    <div class="stat-card"><div class="v" id="totalHrs">0</div><div class="l">总时长(h)</div></div>
+                    <div class="stat-card"><div class="v" id="totalSegs">0</div><div class="l">段数</div></div>
+                </div>
+            </div>
+
+            <!-- 日志 -->
+            <div class="section">
+                <div class="section-title">④ 请求日志</div>
+                <div id="logBox" class="log"><span class="ts">就绪…</span></div>
+            </div>
+        </aside>
+
+        <div id="map"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+            onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';document.head.appendChild(s);"></script>
+    <script src="js/amap-route.js" onerror="document.getElementById('jsErrorBar').style.display='block';document.getElementById('jsErrorBar').textContent='❌ amap-route.js 加载失败';"></script>
+    <script>
+    /* ============================================================
+       测试页面逻辑 - 复用 amap-route.js 中的高德驾车路径能力
+       ============================================================ */
+    (function () {
+        const API = 'https://restapi.amap.com/v3/direction/driving';
+        const PRESETS = {
+            'bjtiananmen':  { name: '北京·天安门→王府井', o: [116.397, 39.908], d: [116.508, 39.919] },
+            'shanghai':     { name: '上海·外滩→迪士尼',   o: [121.490, 31.238], d: [121.668, 31.143] },
+            'chengdu':      { name: '成都·春熙路→都江堰', o: [104.081, 30.659], d: [103.622, 30.998] },
+            'qinghai-d1':   { name: '青甘 D1·成都→兰州', o: [104.066, 30.572], d: [103.834, 36.061] },
+            'qinghai-d2':   { name: '青甘 D2·兰州→张掖', o: [103.834, 36.061], d: [100.449, 38.925] },
+            'qinghai-d5':   { name: '青甘 D5·大柴旦→格尔木', o: [95.280, 37.869], d: [94.928, 36.406] }
+        };
+
+        const state = {
+            map: null,
+            polylineLayer: null,
+            markers: [],
+            segments: [],   // { name, o:{lng,lat,name}, d:{lng,lat,name}, result?:{coords,distance,duration} }
+            aborter: new AbortController()
+        };
+
+        // ------- DOM -------
+        const $ = id => document.getElementById(id);
+        const elKey = $('amapKey');
+        const elBtnTestKey = $('btnTestKey');
+        const elBtnClearKey = $('btnClearKey');
+        const elKeyStatus = $('keyStatus');
+        const elSegList = $('segList');
+        const elRouteStats = $('routeStats');
+        const elLogBox = $('logBox');
+
+        // ------- 日志 -------
+        function ts() {
+            const d = new Date();
+            return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+        }
+        function log(msg, cls) {
+            const line = document.createElement('div');
+            line.innerHTML = '<span class="ts">[' + ts() + ']</span> <span class="' + (cls || '') + '">' + msg + '</span>';
+            elLogBox.appendChild(line);
+            elLogBox.scrollTop = elLogBox.scrollHeight;
+            while (elLogBox.children.length > 300) elLogBox.removeChild(elLogBox.firstChild);
+        }
+        function setStatus(el, text, cls) {
+            el.className = 'status ' + (cls || 'info');
+            el.textContent = text;
+        }
+
+        // ------- 原始请求(调试用,直接打印返回)-------
+        async function rawFetch() {
+            const key = (elKey.value || '').trim();
+            if (!key) { log('❌ 未配置 Key', 'err'); return; }
+            const o = getName('o', '起点');
+            const d = getName('d', '终点');
+            if (!o || !d) { log('❌ 坐标无效', 'err'); return; }
+            const strategy = parseInt($('strategy').value, 10) || 0;
+            const url = API + '?key=' + encodeURIComponent(key) +
+                '&origin=' + o.lng + ',' + o.lat +
+                '&destination=' + d.lng + ',' + d.lat +
+                '&strategy=' + strategy + '&extensions=base&output=json';
+            log('🧪 原始请求 URL(只看前 80): ' + url.slice(0, 80) + '…', 'info');
+            log('🧪 完整 URL:<br>' + url, 'info');
+            let resp, txt;
+            try {
+                resp = await fetch(url);
+                log('🧪 HTTP 状态: ' + resp.status + ' ' + resp.statusText, resp.ok ? 'ok' : 'err');
+                txt = await resp.text();
+            } catch (e) {
+                log('❌ 网络失败: ' + e.message, 'err');
+                return;
+            }
+            log('🧪 返回长度: ' + txt.length + ' 字符', 'info');
+            log('🧪 返回前 500 字符:<br>' + txt.slice(0, 500), 'info');
+            try {
+                const json = JSON.parse(txt);
+                log('🧪 status=' + json.status + ' · infocode=' + json.infocode + ' · info=' + (json.info || ''), json.status === '1' ? 'ok' : 'err');
+                if (json.route && json.route.paths && json.route.paths[0]) {
+                    const p = json.route.paths[0];
+                    log('🧪 polyline 长度: ' + (p.polyline ? p.polyline.length : 0) + ' 字符 · distance=' + p.distance + ' · duration=' + p.duration, 'ok');
+                } else {
+                    log('🧪 ⚠️ 没有 paths[0]', 'err');
+                }
+            } catch (e) {
+                log('❌ 非 JSON: ' + e.message, 'err');
+            }
+        }
+
+        // ------- 地图 -------
+        function initMap() {
+            state.map = L.map('map', { zoomControl: true }).setView([36.5, 100], 5);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '© OpenStreetMap · 数据来源:高德开放平台'
+            }).addTo(state.map);
+            state.polylineLayer = L.layerGroup().addTo(state.map);
+
+            // 自定义 pane,让驾车线在 marker 之上
+            if (!state.map.getPane('amapPane')) {
+                state.map.createPane('amapPane');
+                state.map.getPane('amapPane').style.zIndex = 650;
+            }
+        }
+
+        // ------- Key -------
+        function loadKey() {
+            const k = localStorage.getItem('amap_key') || '';
+            elKey.value = k;
+            window.CONFIG = window.CONFIG || {};
+            window.CONFIG.AMAP_KEY = k;
+            window.CONFIG.AMAP_STRATEGY = 0;
+            if (k) {
+                setStatus(elKeyStatus, '已从 localStorage 加载 Key(共 ' + k.length + ' 位)', 'info');
+                log('已加载 Key 末 4 位:****' + k.slice(-4), 'info');
+            }
+        }
+        function saveKey() {
+            const k = (elKey.value || '').trim();
+            localStorage.setItem('amap_key', k);
+            window.CONFIG = window.CONFIG || {};
+            window.CONFIG.AMAP_KEY = k;
+            log('Key 已保存到 localStorage', 'ok');
+        }
+        function clearKey() {
+            localStorage.removeItem('amap_key');
+            elKey.value = '';
+            window.CONFIG.AMAP_KEY = '';
+            setStatus(elKeyStatus, 'Key 已清除', 'err');
+            log('Key 已清除', 'err');
+        }
+        async function testKey() {
+            saveKey();
+            const key = (elKey.value || '').trim();
+            if (!key) { setStatus(elKeyStatus, '❌ 未填写 Key', 'err'); return; }
+            if (key.length < 16) { setStatus(elKeyStatus, '❌ Key 长度不对(应 32 位)', 'err'); return; }
+            setStatus(elKeyStatus, '⏳ 测试中…北京天安门→王府井', 'info');
+            log('测试 Key,使用北京天安门(116.397,39.908)→王府井(116.508,39.919)', 'info');
+            const url = API + '?key=' + encodeURIComponent(key) + '&origin=116.397,39.908&destination=116.508,39.919&strategy=0&extensions=all&output=json';
+            let resp, txt;
+            try {
+                resp = await fetch(url, { signal: state.aborter.signal });
+            } catch (e) {
+                setStatus(elKeyStatus, '❌ 网络失败:' + e.message, 'err');
+                log('❌ 网络失败:' + e.message, 'err');
+                return;
+            }
+            try {
+                txt = await resp.text();
+            } catch (e) {
+                setStatus(elKeyStatus, '❌ 读取响应失败:' + e.message, 'err');
+                return;
+            }
+            let json;
+            try { json = JSON.parse(txt); }
+            catch (e) {
+                setStatus(elKeyStatus, '❌ 返回非 JSON:' + txt.slice(0, 80), 'err');
+                log('返回内容:' + txt.slice(0, 200), 'err');
+                return;
+            }
+            if (json.status !== '1') {
+                const code = json.infocode;
+                const errMap = {
+                    '10001': 'Key 不正确或过期',
+                    '10003': 'Key 未启用「Web 服务」平台',
+                    '10004': 'Key 域名白名单限制,请在控制台加上 xiao-xuyu.github.io',
+                    '10005': 'Key IP 白名单限制',
+                    '10006': 'Key 余额不足',
+                    '10007': 'Key 已删除',
+                    '10008': 'Key 已冻结',
+                    '10009': 'Key 未开通该 API 服务'
+                };
+                const msg = (errMap[code] || json.info) + ' (' + code + ')';
+                setStatus(elKeyStatus, '❌ ' + msg, 'err');
+                log('❌ ' + msg, 'err');
+                return;
+            }
+            const path = json.route && json.route.paths && json.route.paths[0];
+            if (!path) {
+                setStatus(elKeyStatus, '❌ 接口成功但无路径数据', 'err');
+                return;
+            }
+            const km = (parseInt(path.distance, 10) / 1000).toFixed(2);
+            const mins = Math.round(parseInt(path.duration, 10) / 60);
+            setStatus(elKeyStatus, '✅ Key 有效 · 北京测试段 ' + km + ' km / ' + mins + ' 分钟', 'ok');
+            log('✅ Key 有效 · 距离 ' + km + 'km · ' + mins + 'min · polyline(顶层)长度 ' + (path.polyline ? path.polyline.length : 0) + ' · steps=' + (path.steps ? path.steps.length : 0), 'ok');
+            // 把北京测试段自动加入路线 + 真实请求一次拿 polyline
+            addSegment('北京·天安门', 116.397, 39.908, '北京·王府井', 116.508, 39.919);
+            const seg = state.segments[state.segments.length - 1];
+            fetchSegment(seg)
+                .then(() => { renderSegList(); rerenderMap(); })
+                .catch(e => log('❌ 测试段绘制失败:' + e.message, 'err'));
+        }
+
+        // ------- 路线段 -------
+        function readCoord(prefix) {
+            return {
+                lng: parseFloat($(prefix + 'Lng').value),
+                lat: parseFloat($(prefix + 'Lat').value)
+            };
+        }
+        function getName(prefix, fallback) {
+            const c = readCoord(prefix);
+            if (!isFinite(c.lng) || !isFinite(c.lat)) return null;
+            return { lng: c.lng, lat: c.lat, name: fallback };
+        }
+        function addSegment(oName, oLng, oLat, dName, dLng, dLat) {
+            const seg = {
+                o: { lng: oLng, lat: oLat, name: oName },
+                d: { lng: dLng, lat: dLat, name: dName },
+                result: null
+            };
+            state.segments.push(seg);
+            renderSegList();
+            log('➕ 添加段 ' + oName + ' → ' + dName, 'info');
+        }
+        function removeSegment(idx) {
+            const removed = state.segments.splice(idx, 1)[0];
+            log('➖ 删除段 ' + removed.o.name + ' → ' + removed.d.name, 'info');
+            renderSegList();
+            rerenderMap();
+        }
+        function clearSegments() {
+            state.segments = [];
+            renderSegList();
+            rerenderMap();
+            elRouteStats.style.display = 'none';
+            log('🗑 清空所有段', 'info');
+        }
+        function renderSegList() {
+            elSegList.innerHTML = '';
+            if (state.segments.length === 0) {
+                elSegList.innerHTML = '<div class="hint">暂无段,点击「➕ 添加到路线」或预设按钮</div>';
+                elRouteStats.style.display = 'none';
+                return;
+            }
+            state.segments.forEach((s, i) => {
+                const div = document.createElement('div');
+                div.className = 'route-segment';
+                const km = s.result ? (s.result.distance / 1000).toFixed(1) + 'km' : '—';
+                const mins = s.result ? Math.round(s.result.duration / 60) + 'min' : '—';
+                div.innerHTML = '<div class="num">' + (i + 1) + '</div>' +
+                    '<div class="info"><b>' + s.o.name + '</b> → <b>' + s.d.name + '</b><br>' +
+                    '<span>📏 ' + km + ' · ⏱ ' + mins + ' · 点 ' + s.o.lng.toFixed(3) + ',' + s.o.lat.toFixed(3) + ' → ' + s.d.lng.toFixed(3) + ',' + s.d.lat.toFixed(3) + '</span></div>' +
+                    '<div class="actions">' +
+                    '<button data-act="retry" data-i="' + i + '">🔄</button>' +
+                    '<button data-act="del" data-i="' + i + '">🗑</button>' +
+                    '</div>';
+                elSegList.appendChild(div);
+            });
+            // 统计
+            const totalKm = state.segments.reduce((s, x) => s + (x.result ? x.result.distance : 0), 0);
+            const totalSec = state.segments.reduce((s, x) => s + (x.result ? x.result.duration : 0), 0);
+            if (totalKm > 0) {
+                elRouteStats.style.display = 'grid';
+                $('totalKm').textContent = (totalKm / 1000).toFixed(0);
+                $('totalHrs').textContent = (totalSec / 3600).toFixed(1);
+                $('totalSegs').textContent = state.segments.length;
+            }
+        }
+
+        // ------- 高德请求 -------
+        async function fetchSegment(seg) {
+            const key = (elKey.value || '').trim();
+            if (!key) throw new Error('未配置 Key');
+            const strategy = parseInt($('strategy').value, 10) || 0;
+            const params = new URLSearchParams({
+                key,
+                origin: seg.o.lng + ',' + seg.o.lat,
+                destination: seg.d.lng + ',' + seg.d.lat,
+                strategy: String(strategy),
+                extensions: 'base',
+                output: 'json'
+            });
+            const url = API + '?' + params.toString();
+            log('📡 URL(完整): ' + url, 'info');
+            log('📡 key 末 4 位: ****' + key.slice(-4), 'info');
+            log('📡 起终点: origin=' + seg.o.lng + ',' + seg.o.lat + ' → destination=' + seg.d.lng + ',' + seg.d.lat, 'info');
+            log('📡 请求: ' + seg.o.name + '→' + seg.d.name + ' · strategy=' + strategy, 'info');
+            let resp, json, txt;
+            try {
+                resp = await fetch(url, { signal: state.aborter.signal });
+            } catch (e) {
+                throw new Error('网络失败:' + e.message);
+            }
+            try {
+                txt = await resp.text();
+                json = JSON.parse(txt);
+            } catch (e) {
+                throw new Error('JSON 解析失败:' + e.message + ' · ' + (txt || '').slice(0, 80));
+            }
+            if (json.status !== '1') {
+                const code = json.infocode;
+                const errMap = {
+                    '10001': 'Key 不正确或过期',
+                    '10003': 'Key 未启用「Web 服务」',
+                    '10004': 'Key 域名白名单限制',
+                    '10005': 'Key IP 白名单限制',
+                    '10009': 'Key 未开通该 API 服务',
+                    '20000': '请求参数错误:' + (json.info || ''),
+                    '30100': '两点之间无可达路径'
+                };
+                throw new Error((errMap[code] || json.info) + ' (' + code + ')');
+            }
+            const path = json.route && json.route.paths && json.route.paths[0];
+            if (!path) throw new Error('未返回路径');
+            // 高德两种 polyline 位置:
+            // 1. extensions=base → polyline 在 paths[0] 顶层(短路径)
+            // 2. extensions=all  → polyline 在 steps[].polyline,需要拼接
+            // 3. base 模式下长路径也会把 polyline 放在顶层但可能为空,这种情况下退一步从 steps 拼
+            let polyStr = path.polyline || '';
+            if (!polyStr && path.steps && path.steps.length) {
+                polyStr = path.steps.map(s => s.polyline).filter(Boolean).join(';');
+                log('🔧 顶层 polyline 为空,从 ' + path.steps.length + ' 个 steps 拼接', 'info');
+            }
+            if (!polyStr) {
+                throw new Error('paths[0].polyline 为空且 steps 也无 polyline,原始响应 keys: ' + Object.keys(path).join(','));
+            }
+            seg.result = {
+                coords: decodePolyline(polyStr),
+                distance: parseInt(path.distance, 10),
+                duration: parseInt(path.duration, 10)
+            };
+            log('✅ ' + seg.o.name + '→' + seg.d.name + ' · ' + (seg.result.distance / 1000).toFixed(1) + 'km · ' +
+                Math.round(seg.result.duration / 60) + 'min · 点数 ' + seg.result.coords.length, 'ok');
+            return seg.result;
+        }
+
+        function decodePolyline(str) {
+            if (!str) return [];
+            const points = [];
+            let idx = 0, lat = 0, lng = 0;
+            while (idx < str.length) {
+                let b, shift = 0, result = 0;
+                do {
+                    b = str.charCodeAt(idx++) - 63;
+                    result |= (b & 0x1f) << shift;
+                    shift += 5;
+                } while (b >= 0x20);
+                const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                lat += dlat;
+                shift = 0; result = 0;
+                do {
+                    b = str.charCodeAt(idx++) - 63;
+                    result |= (b & 0x1f) << shift;
+                    shift += 5;
+                } while (b >= 0x20);
+                const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                lng += dlng;
+                points.push([lng / 1e6, lat / 1e6]);
+            }
+            return points;
+        }
+
+        // ------- 地图绘制 -------
+        function clearMapOverlays() {
+            state.markers.forEach(m => m.remove());
+            state.markers = [];
+            state.polylineLayer.clearLayers();
+        }
+        function rerenderMap() {
+            clearMapOverlays();
+            state.segments.forEach(drawSegmentOnMap);
+            fitMapToSegments();
+        }
+        function fitMapToSegments() {
+            const all = [];
+            state.segments.forEach(s => {
+                all.push([s.o.lat, s.o.lng]);
+                all.push([s.d.lat, s.d.lng]);
+                if (s.result && s.result.coords) {
+                    s.result.coords.forEach(p => all.push([p[1], p[0]]));
+                }
+            });
+            if (all.length === 0) return;
+            const bounds = L.latLngBounds(all);
+            state.map.fitBounds(bounds, { padding: [30, 30] });
+        }
+        const SEG_COLORS = ['#1e88e5', '#e74c3c', '#27ae60', '#f39c12', '#9b59b6', '#16a085', '#e67e22', '#34495e', '#1abc9c'];
+        function drawSegmentOnMap(seg) {
+            // 起点 marker
+            const oM = L.marker([seg.o.lat, seg.o.lng], { title: seg.o.name })
+                .bindTooltip('🚩 ' + seg.o.name + '\n' + seg.o.lng.toFixed(5) + ',' + seg.o.lat.toFixed(5), { permanent: false })
+                .addTo(state.map);
+            state.markers.push(oM);
+            // 终点 marker
+            const dM = L.marker([seg.d.lat, seg.d.lng], { title: seg.d.name })
+                .bindTooltip('🏁 ' + seg.d.name + '\n' + seg.d.lng.toFixed(5) + ',' + seg.d.lat.toFixed(5), { permanent: false })
+                .addTo(state.map);
+            state.markers.push(dM);
+
+            if (seg.result && seg.result.coords.length > 0) {
+                const idx = state.segments.indexOf(seg);
+                const color = SEG_COLORS[idx % SEG_COLORS.length];
+                const latlngs = seg.result.coords.map(p => [p[1], p[0]]);
+                const line = L.polyline(latlngs, {
+                    color, weight: 6, opacity: 0.9,
+                    lineCap: 'round', lineJoin: 'round'
+                });
+                line.bindTooltip(seg.o.name + ' → ' + seg.d.name +
+                    '\n🚗 ' + (seg.result.distance / 1000).toFixed(1) + ' km · ' +
+                    Math.round(seg.result.duration / 60) + ' min');
+                state.polylineLayer.addLayer(line);
+            } else {
+                // 还没有真实路径,先画一条灰色虚线表示该段已添加,等待高德返回
+                const idx = state.segments.indexOf(seg);
+                const color = SEG_COLORS[idx % SEG_COLORS.length];
+                const line = L.polyline([[seg.o.lat, seg.o.lng], [seg.d.lat, seg.d.lng]], {
+                    color, weight: 4, opacity: 0.5,
+                    dashArray: '6,8',
+                    lineCap: 'round'
+                });
+                line.bindTooltip('⏳ 等待高德接口返回真实路径…\n点 🔄 重试该段');
+                state.polylineLayer.addLayer(line);
+            }
+        }
+
+        // ------- 批量操作 -------
+        async function drawAllSegments() {
+            const key = (elKey.value || '').trim();
+            if (!key) {
+                setStatus(elKeyStatus, '❌ 请先填写并测试 Key', 'err');
+                log('❌ 未配置 Key', 'err');
+                return;
+            }
+            if (state.segments.length === 0) {
+                log('⚠️ 暂无路线段', 'err');
+                return;
+            }
+            log('🚀 开始批量请求 ' + state.segments.length + ' 段', 'info');
+            for (let i = 0; i < state.segments.length; i++) {
+                const s = state.segments[i];
+                try {
+                    await fetchSegment(s);
+                } catch (e) {
+                    log('❌ 第 ' + (i + 1) + ' 段失败:' + e.message, 'err');
+                }
+                if (i < state.segments.length - 1) await sleep(400);
+                renderSegList();
+                rerenderMap();
+            }
+            log('🏁 批量请求完成', 'ok');
+        }
+
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        // ------- 事件 -------
+        elBtnTestKey.addEventListener('click', testKey);
+        elBtnClearKey.addEventListener('click', clearKey);
+        elKey.addEventListener('change', saveKey);
+
+        $('btnAddSeg').addEventListener('click', () => {
+            const o = getName('o', '起点');
+            const d = getName('d', '终点');
+            if (!o || !d) { log('❌ 坐标无效', 'err'); return; }
+            addSegment(o.name, o.lng, o.lat, d.name, d.lng, d.lat);
+            drawSegmentOnMap(state.segments[state.segments.length - 1]);
+            fitMapToSegments();
+            // 自动请求一次
+            const seg = state.segments[state.segments.length - 1];
+            fetchSegment(seg)
+                .then(() => { renderSegList(); rerenderMap(); })
+                .catch(e => { log('❌ 段失败:' + e.message, 'err'); renderSegList(); });
+        });
+        $('btnClearSeg').addEventListener('click', clearSegments);
+
+        $('btnBatchDraw').addEventListener('click', () => {
+            // 对所有还没有 result 的段,串行请求(QPS 防护)
+            const pending = state.segments.filter(s => !s.result);
+            if (pending.length === 0) {
+                log('ℹ️ 所有段均已请求成功,无需重画', 'info');
+                return;
+            }
+            log('🚀 批量请求 ' + pending.length + ' 段未绘制路线', 'info');
+            (async () => {
+                for (let i = 0; i < pending.length; i++) {
+                    const seg = pending[i];
+                    try {
+                        await fetchSegment(seg);
+                    } catch (e) {
+                        log('❌ 段失败: ' + seg.o.name + '→' + seg.d.name + ' · ' + e.message, 'err');
+                    }
+                    renderSegList();
+                    rerenderMap();
+                    if (i < pending.length - 1) await sleep(450);
+                }
+                log('🏁 批量完成', 'ok');
+            })();
+        });
+
+        $('btnShowAll').addEventListener('click', () => {
+            fitMapToSegments();
+            log('🗺 视图已适配所有段', 'info');
+        });
+
+        $('btnRaw').addEventListener('click', rawFetch);
+
+        $('btnDiag').addEventListener('click', async () => {
+            log('🔍 === 网络诊断开始 ===', 'info');
+            log('🔍 当前页面协议: ' + location.protocol + ' // ' + location.host, 'info');
+            log('🔍 localStorage 中 amap_key 长度: ' + ((localStorage.getItem('amap_key') || '').length), 'info');
+            log('🔍 浏览器 UA: ' + navigator.userAgent.slice(0, 100), 'info');
+            // 测试 1: 直接 ping 高德域名
+            try {
+                const r = await fetch('https://restapi.amap.com/v3/direction/driving?key=__none__&origin=116.397,39.908&destination=116.508,39.919&strategy=0&extensions=base&output=json', { method: 'GET' });
+                log('🔍 ping 高德域名: HTTP ' + r.status + (r.ok ? ' · 可达' : ' · 可达但 Key 无效'), r.ok ? 'err' : 'ok');
+            } catch (e) {
+                log('🔍 ❌ ping 高德失败: ' + e.message + ' · 可能是浏览器 CORS / 网络代理拦截', 'err');
+            }
+            // 测试 2: 用真实 Key 跑一次
+            const key = (elKey.value || '').trim();
+            if (key) {
+                try {
+                    const url = 'https://restapi.amap.com/v3/direction/driving?key=' + encodeURIComponent(key) + '&origin=116.397,39.908&destination=116.508,39.919&strategy=0&extensions=base&output=json';
+                    const r = await fetch(url);
+                    const t = await r.text();
+                    log('🔍 用真实 Key 测试: HTTP ' + r.status + ' · 返回 ' + t.length + ' 字符', r.ok ? 'ok' : 'err');
+                    log('🔍 返回内容: ' + t.slice(0, 300), 'info');
+                } catch (e) {
+                    log('🔍 ❌ 真实 Key 测试失败: ' + e.message, 'err');
+                }
+            } else {
+                log('🔍 未填 Key,跳过真实测试', 'err');
+            }
+            log('🔍 === 诊断结束 ===', 'info');
+        });
+
+        elSegList.addEventListener('click', e => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const i = parseInt(btn.dataset.i, 10);
+            const act = btn.dataset.act;
+            if (act === 'del') removeSegment(i);
+            if (act === 'retry') {
+                const s = state.segments[i];
+                fetchSegment(s).then(() => { renderSegList(); rerenderMap(); })
+                    .catch(err => { log('❌ 重试失败:' + err.message, 'err'); renderSegList(); });
+            }
+        });
+
+        document.querySelectorAll('[data-preset]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                try {
+                    const p = PRESETS[btn.dataset.preset];
+                    if (!p) { log('❌ 预设不存在: ' + btn.dataset.preset, 'err'); return; }
+                    $('oLng').value = p.o[0]; $('oLat').value = p.o[1];
+                    $('dLng').value = p.d[0]; $('dLat').value = p.d[1];
+                    log('🎯 预设: ' + p.name + ' · 自动添加并请求', 'info');
+                    // 拆名字(支持「青甘 D1·成都→兰州」)
+                    const parts = p.name.split('·');
+                    const names = parts[parts.length - 1].split('→');
+                    addSegment(names[0], p.o[0], p.o[1], names[1], p.d[0], p.d[1]);
+                    const seg = state.segments[state.segments.length - 1];
+                    drawSegmentOnMap(seg);
+                    fitMapToSegments();
+                    log('🎯 已添加段 · seg.o=' + JSON.stringify(seg.o) + ' · seg.d=' + JSON.stringify(seg.d), 'info');
+                    await fetchSegment(seg);
+                    log('🎯 请求成功 · seg.result.coords.length=' + (seg.result ? seg.result.coords.length : 'null'), 'ok');
+                    renderSegList();
+                    rerenderMap();
+                } catch (e) {
+                    log('❌ 预设流程异常: ' + (e.message || e) + ' · ' + (e.stack || '').slice(0, 200), 'err');
+                    renderSegList();
+                }
+            });
+        });
+
+        // ------- 启动 -------
+        window.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            loadKey();
+            renderSegList();
+            log('页面就绪', 'info');
+        });
+    })();
+    </script>
+</body>
+</html>

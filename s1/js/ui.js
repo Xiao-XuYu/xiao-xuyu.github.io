@@ -1,20 +1,37 @@
 /* ============================================================
-   ui.js - 侧边面板交互(搜索/筛选/每日列表/抽屉/统计/开关/Key配置)
+   ui.js - 侧边面板交互 + 全部用户偏好持久化
    职责:
-     - 渲染分类筛选列表
-     - 渲染每日路线列表(可点击)
-     - 搜索框绑定
-     - 移动端抽屉开关
-     - 统计条数据更新
-     - 高德路线开关 UI 与状态
-     - 高德 API Key 输入、保存(localStorage)、清空
+     - 渲染分类筛选(checkbox 状态写入 localStorage)
+     - 渲染每日路线列表
+     - 搜索框
+     - 抽屉/移动端
+     - 「环湖路线」开关(默认开,本地虚线)
+     - 「驾车真实路径」开关(默认关,需 Key;与前者互斥)
+     - 高德 API Key 输入 / 保存 / 清空(localStorage)
+     - 路线模式 localStorage 持久化
    ============================================================ */
 
 const UI = (function () {
     let onDayClick = () => {};
     let onAllRouteClick = () => {};
-    let onAmapToggle = (on) => {};
+    let onModeChange = (mode) => {};   // 'local' | 'amap'
 
+    // ---------- localStorage 工具 ----------
+    function lsGet(key, def) {
+        try { const v = localStorage.getItem(key); return v == null ? def : v; }
+        catch (e) { return def; }
+    }
+    function lsSet(key, val) {
+        try { localStorage.setItem(key, val); } catch (e) {}
+    }
+    function lsGetJSON(key, def) {
+        const v = lsGet(key, null);
+        if (!v) return def;
+        try { return JSON.parse(v); } catch (e) { return def; }
+    }
+    function lsSetJSON(key, obj) { lsSet(key, JSON.stringify(obj)); }
+
+    // ---------- 统计 ----------
     function updateStats(days) {
         const totalKm = days.reduce((s, d) => s + d.km, 0);
         document.getElementById('statDistance').textContent = totalKm.toLocaleString();
@@ -24,15 +41,20 @@ const UI = (function () {
         document.getElementById('statLakes').textContent = window.AppData.saltLakes.length;
     }
 
+    // ---------- 分类筛选(checkbox 持久化) ----------
     function renderFilters() {
         const { categories, saltLakes, cities, scenics } = window.AppData;
         const container = document.getElementById('filters');
         container.innerHTML = '';
+        const saved = lsGetJSON(window.CONFIG.LS_FILTER_STATE, null) || {};
         Object.entries(categories).forEach(([key, cat]) => {
+            // 默认全开,用户显式关闭过的才记 false
+            const checked = (key in saved) ? !!saved[key] : true;
+
             const div = document.createElement('div');
             div.className = 'filter-item';
             div.innerHTML = `
-                <input type="checkbox" id="filter-${key}" checked>
+                <input type="checkbox" id="filter-${key}" ${checked ? 'checked' : ''}>
                 <div class="check"></div>
                 <div class="legend-dot" style="background:${cat.color};"></div>
                 <span>${cat.name}</span>
@@ -41,13 +63,23 @@ const UI = (function () {
                     key === 'city' ? cities.length :
                     key === 'scenic' ? scenics.length : ''
                 }</span>`;
-            div.querySelector('input').addEventListener('change', e => {
-                if (e.target.checked) MapManager.getMap().addLayer(MapManager.getLayer(key));
+
+            const cb = div.querySelector('input');
+            // 初次渲染按持久化状态同步图层显隐
+            if (!checked) {
+                const layer = MapManager.getLayer(key);
+                if (layer) MapManager.getMap().removeLayer(layer);
+            }
+            cb.addEventListener('change', () => {
+                if (cb.checked) MapManager.getMap().addLayer(MapManager.getLayer(key));
                 else MapManager.getMap().removeLayer(MapManager.getLayer(key));
+                // 写回 localStorage
+                const cur = lsGetJSON(window.CONFIG.LS_FILTER_STATE, {}) || {};
+                cur[key] = cb.checked;
+                lsSetJSON(window.CONFIG.LS_FILTER_STATE, cur);
             });
             div.addEventListener('click', e => {
                 if (e.target.tagName !== 'INPUT') {
-                    const cb = div.querySelector('input');
                     cb.checked = !cb.checked;
                     cb.dispatchEvent(new Event('change'));
                 }
@@ -56,6 +88,7 @@ const UI = (function () {
         });
     }
 
+    // ---------- 每日路线列表 ----------
     function renderDayList(days, activeIdx) {
         const list = document.getElementById('dayList');
         list.innerHTML = '';
@@ -88,6 +121,7 @@ const UI = (function () {
         });
     }
 
+    // ---------- 行程摘要 ----------
     function renderTripSummary() {
         const s = window.AppData.tripSummary;
         const html = `
@@ -102,6 +136,7 @@ const UI = (function () {
         if (el) el.innerHTML = html;
     }
 
+    // ---------- 搜索 ----------
     function initSearch() {
         const input = document.getElementById('searchInput');
         const clear = document.getElementById('searchClear');
@@ -117,6 +152,7 @@ const UI = (function () {
         });
     }
 
+    // ---------- 抽屉 ----------
     function initPanelDrawer() {
         const panel = document.getElementById('panel');
         const toggle = document.getElementById('panelToggle');
@@ -149,57 +185,87 @@ const UI = (function () {
         });
     }
 
-    function initAmapToggle() {
-        const sw = document.getElementById('amapSwitch');
+    // ---------- Key 工具 ----------
+    function hasKey() {
+        const k = (window.CONFIG.AMAP_KEY || '').trim();
+        return k.length >= 16;
+    }
+    function maskKey(k) {
+        if (!k) return '';
+        if (k.length <= 8) return '*'.repeat(k.length);
+        return k.slice(0, 4) + '*'.repeat(Math.max(4, k.length - 8)) + k.slice(-4);
+    }
+
+    // ---------- 双开关(互斥) ----------
+    // mode = 'local' 显示本地虚线;mode = 'amap' 显示高德实线
+    function getMode() {
+        const v = lsGet(window.CONFIG.LS_ROUTE_MODE, 'local');
+        return v === 'amap' ? 'amap' : 'local';
+    }
+    function setMode(mode) {
+        lsSet(window.CONFIG.LS_ROUTE_MODE, mode);
+    }
+
+    function setSwitchesVisual(mode) {
+        const localSw = document.getElementById('localRouteSwitch');
+        const amapSw  = document.getElementById('amapSwitch');
+        if (localSw) localSw.classList.toggle('on', mode === 'local');
+        if (amapSw)  amapSw.classList.toggle('on', mode === 'amap');
+    }
+
+    function setAmapStatus(text, level = 'err') {
         const status = document.getElementById('amapStatus');
+        status.className = 'amap-status ' + level;
+        status.textContent = text;
+    }
 
-        refreshAmapAvailability();
-        syncSwitchFromConfig();
+    function initSwitches() {
+        const localSw = document.getElementById('localRouteSwitch');
+        const amapSw  = document.getElementById('amapSwitch');
+        const status  = document.getElementById('amapStatus');
 
-        if (window.CONFIG.AMAP_DEFAULT_ON && hasKey()) sw.classList.add('on');
+        // 初始视觉
+        const mode = getMode();
+        setSwitchesVisual(mode);
+        if (mode === 'local') {
+            status.className = 'amap-status';
+            status.textContent = '当前:环湖虚线 · 点上面开关可切换';
+        } else {
+            status.className = 'amap-status ' + (hasKey() ? 'ok' : 'err');
+            status.textContent = hasKey()
+                ? '✅ 已开启驾车真实路径'
+                : '⚠️ 请先在上方填入高德 API Key 并保存';
+        }
 
-        sw.addEventListener('click', () => {
-            if (sw.hasAttribute('disabled')) return;
+        // 环湖虚线开关
+        localSw.addEventListener('click', () => {
+            const cur = getMode();
+            if (cur === 'local') return; // 已经是 local,无须切换
+            setMode('local');
+            setSwitchesVisual('local');
+            onModeChange('local');
+            status.className = 'amap-status';
+            status.textContent = '已切换:环湖虚线';
+        });
+
+        // 驾车实线开关
+        amapSw.addEventListener('click', () => {
+            const cur = getMode();
+            if (cur === 'amap') return;
             if (!hasKey()) {
-                // 没 Key 时点开关 → 提示并聚焦输入框
                 setAmapStatus('⚠️ 请先在上方填入高德 API Key 并保存', 'err');
                 document.getElementById('amapKeyInput').focus();
                 return;
             }
-            sw.classList.toggle('on');
-            const on = sw.classList.contains('on');
-            onAmapToggle(on);
-            status.className = 'amap-status ' + (on ? 'ok' : 'err');
-            status.textContent = on ? '🛣 已开启:叠加高德驾车真实路径' : '已关闭:仅显示本地简化路线';
+            setMode('amap');
+            setSwitchesVisual('amap');
+            onModeChange('amap');
+            status.className = 'amap-status ok';
+            status.textContent = '🛣 已开启:叠加高德驾车真实路径';
         });
     }
 
-    function hasKey() {
-        const k = (window.CONFIG.AMAP_KEY || '').trim();
-        return k.length >= 16;       // 高德 Key 一般 32 位
-    }
-
-    function refreshAmapAvailability() {
-        const sw = document.getElementById('amapSwitch');
-        const status = document.getElementById('amapStatus');
-        if (!hasKey()) {
-            sw.classList.remove('on');
-            sw.setAttribute('disabled', 'disabled');
-            status.className = 'amap-status';
-            status.textContent = '请先在上方填入 API Key,驾车真实路径才能启用';
-        } else {
-            sw.removeAttribute('disabled');
-            status.className = 'amap-status ok';
-            status.textContent = '✅ Key 已加载,可开启驾车路径';
-        }
-    }
-
-    function syncSwitchFromConfig() {
-        // CONFIG.AMAP_KEY 已从 localStorage 读取后再调用本方法
-        refreshAmapAvailability();
-    }
-
-    /* ---------- 高德 Key 配置面板 ---------- */
+    // ---------- 高德 Key 配置面板(持久化已在 ui.js 内部完成) ----------
     function initAmapKeyPanel() {
         const input = document.getElementById('amapKeyInput');
         const jscodeInput = document.getElementById('amapJscodeInput');
@@ -210,24 +276,21 @@ const UI = (function () {
         const lsKey = window.CONFIG.LS_KEY_NAME;
         const lsJscode = window.CONFIG.LS_JSCODE_NAME;
 
-        // 载入已保存的 Key(只显示前 4 后 4 中间 ****)
-        const saved = localStorage.getItem(lsKey);
+        const saved = lsGet(lsKey, '');
         if (saved) {
             window.CONFIG.AMAP_KEY = saved;
             input.value = maskKey(saved);
-            input.placeholder = '已保存 Key · 点击「修改」可更换';
+            input.placeholder = '已保存 Key · 点击可修改';
             clearBtn.style.display = '';
         }
 
-        // 载入已保存的 jscode
-        const savedJscode = localStorage.getItem(lsJscode);
+        const savedJscode = lsGet(lsJscode, '');
         if (savedJscode) {
             window.CONFIG.AMAP_SECURITY_JSCODE = savedJscode;
             jscodeInput.value = maskKey(savedJscode);
             jscodeInput.placeholder = '已保存 jscode · 点击可修改';
         }
 
-        // 输入框聚焦时清空,允许输入完整 Key
         input.addEventListener('focus', () => {
             if (input.value.includes('*')) input.value = '';
         });
@@ -235,44 +298,44 @@ const UI = (function () {
             if (jscodeInput.value.includes('*')) jscodeInput.value = '';
         });
 
-        // 保存
         saveBtn.addEventListener('click', () => {
             const v = input.value.trim();
-            if (!v) {
-                setAmapStatus('Key 不能为空', 'err');
-                return;
-            }
-            if (v.length < 16) {
-                setAmapStatus('Key 长度不对,请检查是否完整复制', 'err');
-                return;
-            }
-            localStorage.setItem(lsKey, v);
+            if (!v) { setAmapStatus('Key 不能为空', 'err'); return; }
+            if (v.length < 16) { setAmapStatus('Key 长度不对,请检查是否完整复制', 'err'); return; }
+            lsSet(lsKey, v);
             window.CONFIG.AMAP_KEY = v;
             input.value = maskKey(v);
             input.blur();
 
-            // 同时保存 jscode(可空)
             const jsv = jscodeInput.value.trim();
             if (jsv) {
-                localStorage.setItem(lsJscode, jsv);
+                lsSet(lsJscode, jsv);
                 window.CONFIG.AMAP_SECURITY_JSCODE = jsv;
                 jscodeInput.value = maskKey(jsv);
                 jscodeInput.blur();
             }
 
             clearBtn.style.display = '';
-            // 清缓存让 amap-route 用新 Key 重新请求
             if (window.AmapRoute && AmapRoute.clearAll) AmapRoute.clearAll();
-            refreshAmapAvailability();
+
             const jscodeHint = jsv ? '(已含 jscode)' : '(无 jscode,如仍失败请补填)';
-            setAmapStatus('✅ 已保存 ' + jscodeHint + ',可点开关启用驾车路径', 'ok');
+            if (hasKey() && getMode() === 'amap') {
+                // 当前已经在驾车模式,直接重画
+                const days = window.RouteManager && window.RouteManager.getDays();
+                if (days) {
+                    window.AmapRoute.setEnabled(true);
+                    window.AmapRoute.drawAll(days);
+                }
+                setAmapStatus('✅ 已保存 ' + jscodeHint + ',已重画驾车路径', 'ok');
+            } else {
+                setAmapStatus('✅ 已保存 ' + jscodeHint + ',可点上面开关切换到驾车路径', 'ok');
+            }
         });
 
-        // 清空
         clearBtn.addEventListener('click', () => {
             if (!confirm('确定要清除已保存的 Key 和安全密钥?')) return;
-            localStorage.removeItem(lsKey);
-            localStorage.removeItem(lsJscode);
+            lsSet(lsKey, '');
+            lsSet(lsJscode, '');
             window.CONFIG.AMAP_KEY = '';
             window.CONFIG.AMAP_SECURITY_JSCODE = '';
             input.value = '';
@@ -281,11 +344,9 @@ const UI = (function () {
             jscodeInput.placeholder = '仅当 Key 启用了安全密钥时才需要填写';
             clearBtn.style.display = 'none';
             AmapRoute.clearOverlayOnly();
-            refreshAmapAvailability();
             setAmapStatus('已清除 Key 与 jscode', 'err');
         });
 
-        // 显隐切换
         maskToggle.addEventListener('click', () => {
             if (input.type === 'password') {
                 input.type = 'text';
@@ -311,12 +372,10 @@ const UI = (function () {
             });
         }
 
-        // 测试 Key
         const testBtn = document.getElementById('amapKeyTest');
         if (testBtn) {
             testBtn.addEventListener('click', async () => {
                 const v = input.value.trim();
-                // 如果输入框是掩码(包含 *),就用当前保存的 Key
                 const keyToTest = v.includes('*') ? window.CONFIG.AMAP_KEY : v;
                 if (!keyToTest) {
                     setAmapStatus('请先填写或保存 Key', 'err');
@@ -329,11 +388,8 @@ const UI = (function () {
                 setAmapStatus('⏳ 正在调用高德接口测试 Key…', 'ok');
                 try {
                     const r = await AmapRoute.testKey(keyToTest);
-                    if (r.ok) {
-                        setAmapStatus('✅ ' + r.msg, 'ok');
-                    } else {
-                        setAmapStatus('❌ ' + r.msg, 'err');
-                    }
+                    if (r.ok) setAmapStatus('✅ ' + r.msg, 'ok');
+                    else setAmapStatus('❌ ' + r.msg, 'err');
                 } catch (e) {
                     setAmapStatus('❌ 测试失败:' + e.message, 'err');
                 } finally {
@@ -344,22 +400,10 @@ const UI = (function () {
         }
     }
 
-    function maskKey(k) {
-        if (!k) return '';
-        if (k.length <= 8) return '*'.repeat(k.length);
-        return k.slice(0, 4) + '*'.repeat(Math.max(4, k.length - 8)) + k.slice(-4);
-    }
-
-    function setCallbacks({ onDay, onAll, onAmap }) {
+    function setCallbacks({ onDay, onAll, onMode }) {
         onDayClick = onDay || (() => {});
         onAllRouteClick = onAll || (() => {});
-        onAmapToggle = onAmap || (() => {});
-    }
-
-    function setAmapStatus(text, level = 'err') {
-        const status = document.getElementById('amapStatus');
-        status.className = 'amap-status ' + level;
-        status.textContent = text;
+        onModeChange = onMode || (() => {});
     }
 
     function init() {
@@ -367,12 +411,16 @@ const UI = (function () {
         renderTripSummary();
         initSearch();
         initPanelDrawer();
-        initAmapKeyPanel();      // 先加载 Key 到 CONFIG
-        initAmapToggle();        // 再检查开关状态
+        initAmapKeyPanel();
+        initSwitches();
     }
 
+    // 暴露给 main.js 用于启动时按持久化模式初始化
+    function bootstrapMode() { return getMode(); }
+
     return {
-        init, updateStats, renderDayList, setCallbacks, setAmapStatus
+        init, updateStats, renderDayList, setCallbacks, setAmapStatus,
+        bootstrapMode, hasKey
     };
 })();
 

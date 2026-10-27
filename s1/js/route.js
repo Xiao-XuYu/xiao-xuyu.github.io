@@ -1,9 +1,11 @@
 /* ============================================================
-   route.js - 路线绘制与每日切换
+   route.js - 本地环线路线(虚线)绘制与每日切换
    职责:
      - 绘制本地折线(虚线、每段独立色)
      - 高亮某 Day(其他段淡化)
      - 暴露切换接口给 main
+     - setVisible(on) 用于和「驾车真实路径」开关互斥:
+       开 → 显示本地虚线,关 → 隐藏(让位给高德实线)
    ============================================================ */
 
 const RouteManager = (function () {
@@ -11,6 +13,7 @@ const RouteManager = (function () {
     const routeLayer = L.layerGroup();
     let currentDayPolylines = [];   // 每个 day 的 polyline
     let highlightIdx = -1;
+    let visible = true;
 
     function init() {
         routeLayer.addTo(MapManager.getLayer('route'));
@@ -20,8 +23,6 @@ const RouteManager = (function () {
         routeLayer.clearLayers();
         currentDayPolylines = [];
         highlightIdx = -1;
-        // 同时清掉高德叠加
-        if (window.AmapRoute && window.AmapRoute.clearAll) window.AmapRoute.clearAll();
     }
 
     function drawDays(days) {
@@ -37,6 +38,8 @@ const RouteManager = (function () {
             poly._dayName = day.name;
             currentDayPolylines.push(poly);
         });
+        // 应用当前可见性
+        applyVisibility();
     }
 
     function setHighlight(idx) {
@@ -50,11 +53,21 @@ const RouteManager = (function () {
                 poly.setStyle({ weight: 3, opacity: 0.35 });
             }
         });
-        // 高德驾车路线联动
-        if (window.AmapRoute && window.AmapRoute.isEnabled && window.AmapRoute.isEnabled()) {
-            const days = Object.values(window.AppData.dayRoutes)[0];
-            if (idx === -1) window.AmapRoute.drawAll(days);
-            else window.AmapRoute.drawDay(days[idx]);
+    }
+
+    function setVisible(on) {
+        visible = !!on;
+        applyVisibility();
+    }
+
+    function applyVisibility() {
+        if (currentDayPolylines.length === 0) return;
+        const layer = MapManager.getLayer('route');
+        if (!layer) return;
+        if (visible) {
+            if (!layer.hasLayer(routeLayer)) layer.addLayer(routeLayer);
+        } else {
+            if (layer.hasLayer(routeLayer)) layer.removeLayer(routeLayer);
         }
     }
 
@@ -62,7 +75,9 @@ const RouteManager = (function () {
         return Object.values(window.AppData.dayRoutes)[0] || [];
     }
 
-    return { init, drawDays, setHighlight, getDays };
+    function isVisible() { return visible; }
+
+    return { init, drawDays, setHighlight, setVisible, isVisible, getDays };
 })();
 
 window.RouteManager = RouteManager;
